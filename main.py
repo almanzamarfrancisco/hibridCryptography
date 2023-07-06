@@ -1,6 +1,23 @@
-import os
 from Crypto.Cipher import AES
+import os
 import rsa
+import sys
+
+
+def init():
+    # Make directories and keys if don't exist
+    print("\t[I] Checking directories and making keys...")
+    if not os.path.exists('./Alice'):
+        os.makedirs('./Alice')
+    if not os.path.exists('./Bert'):
+        os.makedirs('./Bert')
+    if not os.path.exists('./Cynthia'):
+        os.makedirs('./Cynthia')
+    print("\t[I] Directories checked! :)")
+    print("\t[I] Making RSA keys...")
+    makeKeysForPerson("Alice")
+    makeKeysForPerson("Bert")
+    print("\t[I] Keys check done! :D")
 
 
 def getRandomBytes(size):
@@ -13,11 +30,13 @@ def getRandomBytes(size):
     return iv
 
 
-def AEScipher(data, key):
+def AEScipher(data, key, outputfile):
     cipher = AES.new(key, AES.MODE_EAX)
     nonce = cipher.nonce
     ciphertext, tag = cipher.encrypt_and_digest(data)
-    return {"ciphertext": ciphertext, "tag": tag, "nonce": nonce}
+    with open(outputfile, "wb") as ciphered_message_file:
+        ciphered_message_file.write(ciphertext)
+    return {"ciphertext": outputfile, "tag": tag, "nonce": nonce}
 
 
 def AESdecipher(ciphertext, key, tag, nonce):
@@ -50,42 +69,82 @@ def makeKeysForPerson(person):
     print(f"{person} pubkey generated")
 
 
-def init():
-    # Make directories and keys if don't exist
-    print("\t[I] Checking directories and making keys...")
-    if not os.path.exists('./Alice'):
-        os.makedirs('./Alice')
-    if not os.path.exists('./Bert'):
-        os.makedirs('./Bert')
-    if not os.path.exists('./Cynthia'):
-        os.makedirs('./Cynthia')
-    print("\t[I] Directories checked! :)")
-    print("\t[I] Making RSA keys...")
-    makeKeysForPerson("Alice")
-    makeKeysForPerson("Bert")
-    print("\t[I] Keys check done! :D")
+def getPubkeyFromPerson(person):
+    with open(f"./{person}/rsa/id_rsa", mode='rb') as pubfile:
+        keydata = pubfile.read()
+        return rsa.PublicKey.load_pkcs1(keydata)
+
+
+def getPrivateKeyFromPerson(person):
+    with open(f"./{person}/rsa/id_rsa.pem", mode='rb') as privatefile:
+        keydata = privatefile.read()
+        return rsa.PrivateKey.load_pkcs1(keydata)
 
 
 def sendAMessage(sender, receiver, file_name):
     if not os.path.exists(f'./{sender}/{file_name}'):
         print("\t[E] Message file does not exist :(")
         exit(1)
-    message_file = open(f'./{sender}/{file_name}', 'rb')
-    data = message_file.read()
+    with open(f'./{sender}/{file_name}', 'rb') as message_file:
+        data = message_file.read()
     iv = getRandomBytes(16)
     print(f'The plain text is: "{data.decode()}"')
-    cdata = AEScipher(data, iv)
-    ciphered_message_file = open(f"./{receiver}/ciphered_message.bin", "wb")
-    ciphered_message_file.write(cdata['ciphertext'])
-    cdata['ciphertext'] = f"./{receiver}/ciphered_message.bin"
-    ciphered_message_file.close()
-    message_file.close()
+    # AES Ciphering
+    parameters = AEScipher(data, iv, f"./{receiver}/ciphered_message.bin")
+    # RSA parameter Ciphering
+    # Set the parameters on a file
+    with open(f"./{sender}/parameters.bin", "+wb") as parameters_file:
+        for k in parameters:
+            if isinstance(parameters[k], (bytes, bytearray)):
+                parameters_file.write(
+                    bytes(k, 'utf-8') + b':' + parameters[k] + b'\n')
+                # print(bytes(k, 'utf-8') + b':' + parameters[k])
+            else:
+                parameters_file.write(
+                    bytes(k, 'utf-8') + b':' + bytes(parameters[k], 'utf-8') + b'\n')
+                # print(bytes(k, 'utf-8') + b':' + bytes(parameters[k], 'utf-8'))
+        parameters_file.seek(0)  # return the cursor to the beginning
+        parameters_data = parameters_file.read()
+        # Cipher the parameters in a file and send it to the receiver
+        print(f"\t[I] Ciphering parameters...")
+        print(
+            f"\t[I] => The file size is {len(parameters_data)} and max block size is 53")
+        print(
+            f"\t[I] => Total of blocks is: {round(len(parameters_data)/53)}")
+        receiver_pubkey = getPubkeyFromPerson(receiver)
+        with open(f"./{receiver}/ciphered_parameters.bin", "+wb") as ciphered_parameters_file:
+            step = 0
+            for i in range(0, len(parameters_data), 53):  # ciphering by 53-size blocks
+                crypto = rsa.encrypt(parameters_data[i:52+i], receiver_pubkey)
+                # print(f"This is the block {step}: {parameters_data[i:52+i]}")
+                step = step + 1
+                ciphered_parameters_file.write(crypto)
+        print("\t[I] Parameters Ciphered successfully!")
+        print("Message sent!")
+    print("\n\n")
 
 
-if __name__ == '__main__':
-    print("**ETS Project**")
-    init()
-    sendAMessage('Alice', 'Bert', 'testMessage.txt')
+def receiveAMessage(person):
+    # TODO:
+    # Get the cipheredParameters file
+    # decrypt by 53-size blocks
+    # get the cipheredMessage file
+    # decrypt with obtaned parameters
+
     # plaintext = AESdecipher(cdata["ciphertext"],
     #                         iv, cdata["tag"], cdata["nonce"])
     # print(f"\t This is the plainText: {plaintext.decode('UTF8', 'replace')}")
+    print("This function is for receiving a message")
+    return
+
+
+if __name__ == '__main__':
+    print("\n\n**ETS Project**")
+    init()
+    for i in sys.argv:
+        if i == 'send':
+            sendAMessage('Alice', 'Bert', 'testMessage.txt')
+            exit(0)
+        if i == 'receive':
+            receiveAMessage('Bert')
+            exit(0)
