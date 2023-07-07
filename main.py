@@ -90,10 +90,10 @@ def sendAMessage(sender, receiver, file_name):
     iv = getRandomBytes(16)
     print(f'The plain text is: "{data.decode()}"')
     # AES Ciphering
-    parameters = AEScipher(data, iv, f"./{receiver}/ciphered_message.bin")
+    parameters = AEScipher(data, iv, f"./{receiver}/ciphered_message")
     # RSA parameter Ciphering
     # Set the parameters on a file
-    with open(f"./{sender}/parameters.bin", "+wb") as parameters_file:
+    with open(f"./{sender}/parameters", "+wb") as parameters_file:
         for k in parameters:
             if isinstance(parameters[k], (bytes, bytearray)):
                 parameters_file.write(
@@ -112,15 +112,17 @@ def sendAMessage(sender, receiver, file_name):
         print(
             f"\t[I] => Total of blocks is: {round(len(parameters_data)/53)}")
         receiver_pubkey = getPubkeyFromPerson(receiver)
-        with open(f"./{receiver}/ciphered_parameters.bin", "+wb") as ciphered_parameters_file:
+        with open(f"./{receiver}/ciphered_parameters", "+wb") as ciphered_parameters_file:
             step = 0
             crypto = b''
-            for i in range(0, len(parameters_data), 53):  # ciphering by 53-size blocks
+            for i in range(0, len(parameters_data), 53):  # ciphering by 53bytes-size blocks
                 crypto = crypto + \
                     rsa.encrypt(parameters_data[i:52+i], receiver_pubkey)
-                print(f"This is the block {step}: {parameters_data[i:52+i]}")
+                print(
+                    f"\t\tThis is the block {step}: \n\t\t\t{parameters_data[i:52+i]}")
+                print(f"And the lenght of the crypto block is: {len(crypto)}")
                 step = step + 1
-            # print("This is the whole message encrypted", crypto)
+            print("This is the whole message encrypted", crypto)
             ciphered_parameters_file.write(crypto)
         print("\t[I] Parameters Ciphered successfully!")
         print("Message sent!")
@@ -129,29 +131,28 @@ def sendAMessage(sender, receiver, file_name):
         with open(f"./{receiver}/rsa/id_rsa.pem", mode='rb') as privatefile:
             keydata = privatefile.read()
         privkey = rsa.PrivateKey.load_pkcs1(keydata)
-        message = b''
         print(f"Length of crypto: {len(crypto)}")
-        print("This is the whole message encrypted", crypto)
-        # for i in range(step):
-        #     print(f"Step {i}")
-        #     message = message + rsa.decrypt(crypto[i:52+i], privkey)
-        # print("This is the message", message)
+        message = b''
+        for i in range(0, step*64, 64):
+            message = message + rsa.decrypt(crypto[i:64+i], privkey)
+        print("This is the decrypted message: ", message)
     print("\n\n")
 
 
 def receiveAMessage(person):
-    # TODO:
     # Get the cipheredParameters file
-    with open(f"./{person}/ciphered_parameters.bin") as cparameter_file:
-        ciphered_parameters = cparameter_file.readlines()
+    with open(f"./{person}/ciphered_parameters", mode="rb") as cparameter_file:
+        ciphered_parameters = cparameter_file.read()
         print(ciphered_parameters)
-    # Obtain privKey
+    # Obtain person privKey
     with open(f"./{person}/rsa/id_rsa.pem", mode='rb') as privatefile:
         keydata = privatefile.read()
     privkey = rsa.PrivateKey.load_pkcs1(keydata)
-    # Decrypt by 53-size blocks
-    print(f"\t => Parameters size: {len(ciphered_parameters)}")
-    parameters = rsa.decrypt(ciphered_parameters, privkey)
+    # Decrypt by 64bytes-size blocks
+    parameters = b''
+    for i in range(0, len(ciphered_parameters)//64, 64):
+        parameters = parameters + \
+            rsa.decrypt(ciphered_parameters[i:64+i], privkey)
     print(f"We got this: {parameters}")
     # get the cipheredMessage file
     # decrypt with obtaned parameters
