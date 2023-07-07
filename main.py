@@ -2,6 +2,7 @@ from Crypto.Cipher import AES
 import os
 import rsa
 import sys
+import json
 
 
 def init():
@@ -36,7 +37,7 @@ def AEScipher(data, key, outputfile):
     ciphertext, tag = cipher.encrypt_and_digest(data)
     with open(outputfile, "wb") as ciphered_message_file:
         ciphered_message_file.write(ciphertext)
-    return {"ciphertext": outputfile, "tag": tag, "nonce": nonce}
+    return {"ciphertext": outputfile, "tag": tag, "nonce": nonce, "iv": key}
 
 
 def AESdecipher(ciphertext, key, tag, nonce):
@@ -54,7 +55,7 @@ def makeKeysForPerson(person):
     if not os.path.exists(f'./{person}/rsa'):
         os.makedirs(f'./{person}/rsa')
     if os.path.exists(f"./{person}/rsa/id_rsa") and os.path.exists(f"./{person}/rsa/id_rsa.pem"):
-        print(f"\t\t[I] -> {person} key files found, skipping creation...")
+        print(f"\t\t -> {person} key files found, skipping creation...")
         return
     (pubkey, privkey) = rsa.newkeys(512)
     try:
@@ -81,6 +82,49 @@ def getPrivateKeyFromPerson(person):
         return rsa.PrivateKey.load_pkcs1(keydata)
 
 
+def getParametersArray(ciphered_parameters, privkey):
+    parameters = b''
+    for i in range(0, len(ciphered_parameters), 64):
+        parameters = parameters + \
+            rsa.decrypt(ciphered_parameters[i:64+i], privkey)
+    # print(f"\t-> Lenght: {len(parameters)} \n\t-> Parameters: {parameters}")
+    parameter_value_ending = 0
+    parameter_key_ending = 0
+    parameters_list = []
+    keys_found = 0
+    key_found = ''
+    value_found = ''
+    for i, c in enumerate(parameters):
+        if not chr(c).isprintable():
+            if chr(parameters[i]).encode('unicode_escape').decode() == '\\n':
+                parameter_value_ending = i
+                try:
+                    value_found = parameters[parameter_key_ending+1:parameter_value_ending].decode(
+                    )
+                except UnicodeDecodeError:
+                    value_found = parameters[parameter_key_ending +
+                                             1:parameter_value_ending]
+
+                # print(
+                #     f"\t\t-> After of finding value: {value_found}")
+                # print(f"\t\t-> Keys found: {keys_found}")
+                parameters_list[keys_found - 1][key_found] = value_found
+                parameter_key_ending = i + 1
+        else:
+            if chr(c) == ':':
+                key_found = parameters[parameter_key_ending:i].decode()
+                # print(
+                #     f"\t-> Value found: {key_found}")
+                parameters_list.append(
+                    {key_found: ''})
+                parameter_key_ending = i
+                keys_found = keys_found + 1
+    # print(f"\t[I] Parameters list:")
+    # for p in parameters_list:
+    #     print(f"\t\t => {p}")
+    return parameters_list
+
+
 def sendAMessage(sender, receiver, file_name):
     if not os.path.exists(f'./{sender}/{file_name}'):
         print("\t[E] Message file does not exist :(")
@@ -88,7 +132,7 @@ def sendAMessage(sender, receiver, file_name):
     with open(f'./{sender}/{file_name}', 'rb') as message_file:
         data = message_file.read()
     iv = getRandomBytes(16)
-    print(f'The plain text is: "{data.decode()}"')
+    # print(f'The plain text is: "{data.decode()}"')
     # AES Ciphering
     parameters = AEScipher(data, iv, f"./{receiver}/ciphered_message")
     # RSA parameter Ciphering
@@ -105,58 +149,46 @@ def sendAMessage(sender, receiver, file_name):
                 # print(bytes(k, 'utf-8') + b':' + bytes(parameters[k], 'utf-8'))
         parameters_file.seek(0)  # return the cursor to the beginning
         parameters_data = parameters_file.read()
+        # print(parameters_data)
         # Cipher the parameters in a file and send it to the receiver
         print(f"\t[I] Ciphering parameters...")
         print(
-            f"\t[I] => The file size is {len(parameters_data)} and max block size is 53")
+            f"\t\t => The file size is {len(parameters_data)} and max block size is 53")
         print(
-            f"\t[I] => Total of blocks is: {round(len(parameters_data)/53)}")
+            f"\t\t => Total of blocks is: {round(len(parameters_data)/53)}")
         receiver_pubkey = getPubkeyFromPerson(receiver)
         with open(f"./{receiver}/ciphered_parameters", "+wb") as ciphered_parameters_file:
-            step = 0
             crypto = b''
             for i in range(0, len(parameters_data), 53):  # ciphering by 53bytes-size blocks
                 crypto = crypto + \
                     rsa.encrypt(parameters_data[i:52+i], receiver_pubkey)
-                print(
-                    f"\t\tThis is the block {step}: \n\t\t\t{parameters_data[i:52+i]}")
-                print(f"And the lenght of the crypto block is: {len(crypto)}")
-                step = step + 1
-            print("This is the whole message encrypted", crypto)
+            # print("This is the whole message encrypted", crypto)
             ciphered_parameters_file.write(crypto)
         print("\t[I] Parameters Ciphered successfully!")
-        print("Message sent!")
-        print("////////////////////////////////////////")
-        print("Let's do the verification...")
-        with open(f"./{receiver}/rsa/id_rsa.pem", mode='rb') as privatefile:
-            keydata = privatefile.read()
-        privkey = rsa.PrivateKey.load_pkcs1(keydata)
-        print(f"Length of crypto: {len(crypto)}")
-        message = b''
-        for i in range(0, step*64, 64):
-            message = message + rsa.decrypt(crypto[i:64+i], privkey)
-        print("This is the decrypted message: ", message)
-    print("\n\n")
+        print("=> Message sent!")
 
 
 def receiveAMessage(person):
     # Get the cipheredParameters file
-    with open(f"./{person}/ciphered_parameters", mode="rb") as cparameter_file:
-        ciphered_parameters = cparameter_file.read()
-        print(ciphered_parameters)
+    try:
+        with open(f"./{person}/ciphered_parameters", mode="rb") as cparameter_file:
+            ciphered_parameters = cparameter_file.read()
+    except FileNotFoundError:
+        print("Wait! there is no message to receive x(")
+        exit(1)
     # Obtain person privKey
     with open(f"./{person}/rsa/id_rsa.pem", mode='rb') as privatefile:
         keydata = privatefile.read()
     privkey = rsa.PrivateKey.load_pkcs1(keydata)
     # Decrypt by 64bytes-size blocks
-    parameters = b''
-    for i in range(0, len(ciphered_parameters)//64, 64):
-        parameters = parameters + \
-            rsa.decrypt(ciphered_parameters[i:64+i], privkey)
-    print(f"We got this: {parameters}")
-    # get the cipheredMessage file
-    # decrypt with obtaned parameters
-
+    parameters = getParametersArray(ciphered_parameters, privkey)
+    # Get the cipheredMessage file
+    with open(f"./{person}/ciphered_message", mode="rb") as cmessage_file:
+        ciphered_message = cmessage_file.read()
+    # Decrypt with obtaned parameters
+    message = AESdecipher(ciphered_message, parameters[3]['iv'],
+                          parameters[1]['tag'], parameters[2]['nonce'])
+    print(f"=====> This is the message: \n{message.decode()}")
     # plaintext = AESdecipher(cdata["ciphertext"],
     #                         iv, cdata["tag"], cdata["nonce"])
     # print(f"\t This is the plainText: {plaintext.decode('UTF8', 'replace')}")
@@ -169,7 +201,9 @@ if __name__ == '__main__':
     for i in sys.argv:
         if i == 'send':
             sendAMessage('Alice', 'Bert', 'testMessage.txt')
+            print("\n\n")
             exit(0)
         if i == 'receive':
             receiveAMessage('Bert')
+            print("\n\n")
             exit(0)
