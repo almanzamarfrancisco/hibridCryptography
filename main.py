@@ -114,27 +114,51 @@ def sendAMessage(sender, receiver, file_name):
         receiver_pubkey = getPubkeyFromPerson(receiver)
         with open(f"./{receiver}/ciphered_parameters.bin", "+wb") as ciphered_parameters_file:
             step = 0
+            crypto = b''
             for i in range(0, len(parameters_data), 53):  # ciphering by 53-size blocks
-                crypto = rsa.encrypt(parameters_data[i:52+i], receiver_pubkey)
-                # print(f"This is the block {step}: {parameters_data[i:52+i]}")
+                crypto = crypto + \
+                    rsa.encrypt(parameters_data[i:52+i], receiver_pubkey)
+                print(f"This is the block {step}: {parameters_data[i:52+i]}")
                 step = step + 1
-                ciphered_parameters_file.write(crypto)
+            # print("This is the whole message encrypted", crypto)
+            ciphered_parameters_file.write(crypto)
         print("\t[I] Parameters Ciphered successfully!")
         print("Message sent!")
+        print("////////////////////////////////////////")
+        print("Let's do the verification...")
+        with open(f"./{receiver}/rsa/id_rsa.pem", mode='rb') as privatefile:
+            keydata = privatefile.read()
+        privkey = rsa.PrivateKey.load_pkcs1(keydata)
+        message = b''
+        print(f"Length of crypto: {len(crypto)}")
+        print("This is the whole message encrypted", crypto)
+        # for i in range(step):
+        #     print(f"Step {i}")
+        #     message = message + rsa.decrypt(crypto[i:52+i], privkey)
+        # print("This is the message", message)
     print("\n\n")
 
 
 def receiveAMessage(person):
     # TODO:
     # Get the cipheredParameters file
-    # decrypt by 53-size blocks
+    with open(f"./{person}/ciphered_parameters.bin") as cparameter_file:
+        ciphered_parameters = cparameter_file.readlines()
+        print(ciphered_parameters)
+    # Obtain privKey
+    with open(f"./{person}/rsa/id_rsa.pem", mode='rb') as privatefile:
+        keydata = privatefile.read()
+    privkey = rsa.PrivateKey.load_pkcs1(keydata)
+    # Decrypt by 53-size blocks
+    print(f"\t => Parameters size: {len(ciphered_parameters)}")
+    parameters = rsa.decrypt(ciphered_parameters, privkey)
+    print(f"We got this: {parameters}")
     # get the cipheredMessage file
     # decrypt with obtaned parameters
 
     # plaintext = AESdecipher(cdata["ciphertext"],
     #                         iv, cdata["tag"], cdata["nonce"])
     # print(f"\t This is the plainText: {plaintext.decode('UTF8', 'replace')}")
-    print("This function is for receiving a message")
     return
 
 
