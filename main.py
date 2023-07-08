@@ -189,9 +189,6 @@ def receiveAMessage(person):
     message = AESdecipher(ciphered_message, parameters[3]['iv'],
                           parameters[1]['tag'], parameters[2]['nonce'])
     print(f"=====> This is the message: \n{message.decode()}")
-    # plaintext = AESdecipher(cdata["ciphertext"],
-    #                         iv, cdata["tag"], cdata["nonce"])
-    # print(f"\t This is the plainText: {plaintext.decode('UTF8', 'replace')}")
     return
 
 
