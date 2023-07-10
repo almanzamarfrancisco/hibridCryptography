@@ -1,5 +1,4 @@
 from Crypto.Cipher import AES
-from gui import windowLayout
 from functools import partial
 from tkinter import ttk
 from tkinter import *
@@ -64,13 +63,13 @@ def makeKeysForPerson(person):
     try:
         with open(f"./{person}/rsa/id_rsa", "wb+") as pubfile:
             pubfile.write(pubkey.save_pkcs1())
-            print(f"{person} pubkey generated")
+            print(f"\t\t=> {person} pubkey generated")
         with open(f"./{person}/rsa/id_rsa.pem", "wb+") as privfile:
             privfile.write(privkey.save_pkcs1())
     except FileExistsError:
         print("\t Something went really wrong! x(")
         pass
-    print(f"{person} pubkey generated")
+    print(f"\t\t=> {person} pubkey generated")
 
 
 def getPubkeyFromPerson(person):
@@ -160,9 +159,9 @@ def sendAMessage(sender, receiver, file_name):
         # Cipher the parameters in a file and send it to the receiver
         print(f"\t[I] Ciphering parameters...")
         print(
-            f"\t\t => The file size is {len(parameters_data)} and max block size is 53")
+            f"\t\t=> The file size is {len(parameters_data)} and max block size is 53")
         print(
-            f"\t\t => Total of blocks is: {round(len(parameters_data)/53)}")
+            f"\t\t=> Total of blocks is: {round(len(parameters_data)/53)}")
         receiver_pubkey = getPubkeyFromPerson(receiver)
         with open(f"./{receiver}/ciphered_parameters", "+wb") as ciphered_parameters_file:
             crypto = b''
@@ -171,7 +170,6 @@ def sendAMessage(sender, receiver, file_name):
                     f"from {i} to {i+53} len: {len(parameters_data[i:53+i])} => {parameters_data[i:53+i]}")
                 crypto = crypto + \
                     rsa.encrypt(parameters_data[i:53+i], receiver_pubkey)
-
             # print("This is the whole message encrypted", crypto)
             print("Message encrypted length", len(crypto))
             ciphered_parameters_file.write(crypto)
@@ -289,15 +287,15 @@ class windowLayout:
 
 
 if __name__ == '__main__':
-    # print("\n\n**ETS Project**")
+    print("\n\n**ETS Project**")
     init()
-    # for i in sys.argv:
-    #     if i == 'send':
-    #         sendAMessage('Alice', 'Bert', 'testMessage.txt')
-    #         print("\n\n")
-    #         exit(0)
-    #     if i == 'receive':
-    #         receiveAMessage('Bert')
-    #         print("\n\n")
-    #         exit(0)
-    windowLayout()
+    for i in sys.argv:
+        if i == 'send':
+            sendAMessage('Alice', 'Bert', 'testMessage.txt')
+            print("\n\n")
+            exit(0)
+        if i == 'receive':
+            receiveAMessage('Bert')
+            print("\n\n")
+            exit(0)
+    # windowLayout()
