@@ -1,8 +1,7 @@
 from Crypto.Cipher import AES
 import os
 import rsa
-import sys
-import json
+from gui import *
 
 
 def init():
@@ -82,12 +81,16 @@ def getPrivateKeyFromPerson(person):
         return rsa.PrivateKey.load_pkcs1(keydata)
 
 
-def getParametersArray(ciphered_parameters, privkey):
+def rsaDecryptParameterBytes(ciphered_parameters, privkey):
     parameters = b''
     for i in range(0, len(ciphered_parameters), 64):
         parameters = parameters + \
             rsa.decrypt(ciphered_parameters[i:64+i], privkey)
     # print(f"\t-> Lenght: {len(parameters)} \n\t-> Parameters: {parameters}")
+    return parameters
+
+
+def getListFromBytes(parameters):
     parameter_value_ending = 0
     parameter_key_ending = 0
     parameters_list = []
@@ -149,7 +152,7 @@ def sendAMessage(sender, receiver, file_name):
                 # print(bytes(k, 'utf-8') + b':' + bytes(parameters[k], 'utf-8'))
         parameters_file.seek(0)  # return the cursor to the beginning
         parameters_data = parameters_file.read()
-        # print(parameters_data)
+        # print(f"\t\t => Parameters data: {parameters_data}")
         # Cipher the parameters in a file and send it to the receiver
         print(f"\t[I] Ciphering parameters...")
         print(
@@ -159,12 +162,25 @@ def sendAMessage(sender, receiver, file_name):
         receiver_pubkey = getPubkeyFromPerson(receiver)
         with open(f"./{receiver}/ciphered_parameters", "+wb") as ciphered_parameters_file:
             crypto = b''
-            for i in range(0, len(parameters_data), 53):  # ciphering by 53bytes-size blocks
+            for i in range(0, len(parameters_data), 54):  # ciphering by 53bytes-size blocks
+                print(
+                    f"from {i} to {i+53} len: {len(parameters_data[i:53+i])} => {parameters_data[i:53+i]}")
                 crypto = crypto + \
-                    rsa.encrypt(parameters_data[i:52+i], receiver_pubkey)
+                    rsa.encrypt(parameters_data[i:53+i], receiver_pubkey)
+
             # print("This is the whole message encrypted", crypto)
+            print("Message encrypted length", len(crypto))
             ciphered_parameters_file.write(crypto)
         print("\t[I] Parameters Ciphered successfully!")
+        print("====================================================================")
+        print("=>Let's test thins thing!: ")
+        with open(f"./{receiver}/ciphered_parameters", "rb+") as testfile:
+            testcdata = testfile.read()
+            testdata = rsaDecryptParameterBytes(
+                testcdata, getPrivateKeyFromPerson('Bert'))
+        print(f"=> original  : {getListFromBytes(parameters_data)}")
+        print(f"=> deciphered: {getListFromBytes(testdata)}")
+        print("====================================================================")
         print("=> Message sent!")
 
 
@@ -181,7 +197,10 @@ def receiveAMessage(person):
         keydata = privatefile.read()
     privkey = rsa.PrivateKey.load_pkcs1(keydata)
     # Decrypt by 64bytes-size blocks
-    parameters = getParametersArray(ciphered_parameters, privkey)
+    parameters_in_bytes = rsaDecryptParameterBytes(
+        ciphered_parameters, privkey)
+
+    parameters = getListFromBytes(parameters_in_bytes)
     # Get the cipheredMessage file
     with open(f"./{person}/ciphered_message", mode="rb") as cmessage_file:
         ciphered_message = cmessage_file.read()
@@ -194,13 +213,14 @@ def receiveAMessage(person):
 
 if __name__ == '__main__':
     print("\n\n**ETS Project**")
-    init()
-    for i in sys.argv:
-        if i == 'send':
-            sendAMessage('Alice', 'Bert', 'testMessage.txt')
-            print("\n\n")
-            exit(0)
-        if i == 'receive':
-            receiveAMessage('Bert')
-            print("\n\n")
-            exit(0)
+    # init()
+    # for i in sys.argv:
+    #     if i == 'send':
+    #         sendAMessage('Alice', 'Bert', 'testMessage.txt')
+    #         print("\n\n")
+    #         exit(0)
+    #     if i == 'receive':
+    #         receiveAMessage('Bert')
+    #         print("\n\n")
+    #         exit(0)
+    generateWindow()
