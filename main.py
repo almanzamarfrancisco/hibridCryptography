@@ -2,7 +2,6 @@ from Crypto.Cipher import AES
 from functools import partial
 from tkinter import ttk
 from tkinter import *
-import sys
 import rsa
 import os
 
@@ -53,7 +52,7 @@ def AESdecipher(ciphertext, key, tag, nonce):
     except ValueError:
         # print(f"\t[E] Key incorrect or message corrupted :(")
         isAuthentic = False
-    return {plaintext.decode(), isAuthentic}
+    return {'plaintext': plaintext.decode(), 'isAuthentic': isAuthentic}
 
 
 def makeKeysForPerson(person):
@@ -160,15 +159,40 @@ class windowLayout:
         ttk.Button(mainframe, text="-> Receive", command=partial(self.bertFunction, "receive")).grid(
             column=3, row=4, sticky=W)
 
-        ttk.Label(mainframe, text="Info box").grid(column=0, row=5, sticky=W)
+        # Switch
+        self.authentic_service_is_on = True
+        self.switchLabel = Label(
+            mainframe, text="Authenticity service On ", fg="green", font=("Helvetica"))
+        self.on = PhotoImage(file="on.png")
+        self.off = PhotoImage(file="off.png")
+        self.on_button = Button(mainframe, image=self.on,
+                                bd=0, command=self.switch)
+        self.switchLabel.grid(column=0, row=5)
+        self.on_button.grid(column=1, row=5, columnspan=5)
+
+        # Information box
+        ttk.Label(mainframe, text="Info box").grid(column=0, row=6, sticky=W)
         self.infoBox = Text(mainframe, height=10, width=50,
                             bg="gray", padx=2, pady=2)
-        self.infoBox.grid(column=0, row=6, columnspan=5)
+        self.infoBox.grid(column=0, row=7, columnspan=5)
 
         for child in mainframe.winfo_children():
             child.grid_configure(padx=5, pady=5)
 
         root.mainloop()
+
+    def switch(self):
+        self.authentic_service_is_on
+        # Determine is on or off
+        if self.authentic_service_is_on:
+            self.on_button.config(image=self.off)
+            self.switchLabel.config(text="Authenticity service Off", fg="grey")
+            self.authentic_service_is_on = False
+        else:
+            self.on_button.config(image=self.on)
+            self.switchLabel.config(
+                text="Authenticity service On ", fg="green")
+            self.authentic_service_is_on = True
 
     def sendAMessage(self, sender, receiver, message):
         data = bytes(message, 'utf-8')
@@ -233,8 +257,8 @@ class windowLayout:
             ciphered_message = cmessage_file.read()
         # Decrypt with obtaned parameters
         message, isAuthentic = AESdecipher(ciphered_message, parameters[3]['iv'],
-                                           parameters[2]['tag'], parameters[1]['nonce'])
-        return {message, isAuthentic}
+                                           parameters[2]['tag'], parameters[1]['nonce']).values()
+        return {'message': message, 'isAuthentic': isAuthentic}
 
     def aliceFunction(self, *args):
         if len(args):
@@ -250,8 +274,9 @@ class windowLayout:
             elif args[0] == 'receive':
                 text = "Receiving message from Bert ;P..."
                 self.infoBox.insert(END, f"{text}\n")
-                isAuthentic, text = self.receiveAMessage('Alice')
-                self.infoBox.insert(END, f"\t{text}\n")
+                text, isAuthentic = self.receiveAMessage('Alice').values()
+
+                self.infoBox.insert(END, f"\t -> {text}\n")
                 self.infoBox.insert(
                     END, f"\t[I] => Is Authentic {isAuthentic}\n")
             self.infoBox.see("end")
@@ -270,10 +295,17 @@ class windowLayout:
             elif args[0] == 'receive':
                 text = f"[I] Receiving message from Alice x)..."
                 self.infoBox.insert(END, f"{text}\n")
-                text, isAuthentic = self.receiveAMessage('Bert')
-                self.infoBox.insert(END, f"\t{text}\n")
-                self.infoBox.insert(
-                    END, f"\t[I] => Is Authentic {isAuthentic}\n")
+                text, isAuthentic = self.receiveAMessage('Bert').values()
+
+                self.infoBox.insert(END, f"\t -> {text}\n")
+                if self.authentic_service_is_on:
+                    authenticity_text = f""
+                    if isAuthentic:
+                        authenticity_text = f"[I] The message is authentic! :D\n"
+                    else:
+                        authenticity_text = f"[W] Key incorrect or message corrupted x(\n"
+                    self.infoBox.insert(
+                        END, f"\t{authenticity_text}\n")
             self.infoBox.see("end")
 
 
