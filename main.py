@@ -89,7 +89,7 @@ def rsaDecryptParameterBytes(ciphered_parameters, privkey):
     for i in range(0, len(ciphered_parameters), 64):
         parameters = parameters + \
             rsa.decrypt(ciphered_parameters[i:64+i], privkey)
-    print(f"\t-> Lenght: {len(parameters)} \n\t-> Parameters: {parameters}")
+    # print(f"\t-> Lenght: {len(parameters)} \n\t-> Parameters: {parameters}")
     return parameters
 
 
@@ -177,32 +177,7 @@ def sendAMessage(sender, receiver, file_name):
             #     f"This is the whole message encrypted ({len(crypto)}): {crypto}")
             ciphered_parameters_file.write(crypto)
         print("\t[I] Parameters Ciphered successfully!")
-        print("====================================================================")
-        print("=> Let's test thins thing!: ")
-        with open(f"./{receiver}/ciphered_parameters", "rb+") as testfile:
-            testcdata = testfile.read()
-            testdata = rsaDecryptParameterBytes(
-                testcdata, getPrivateKeyFromPerson('Bert'))
-        print(f"\n\n")
-        print(f"=> original  ({len(parameters_data)}): {parameters_data}")
-        print(f"=> deciphered({len(testdata)}): {testdata}")
-        print(f"\n\n")
-        dec_params = getListFromBytes(testdata)
-        param_list = getListFromBytes(parameters_data)
-        print(f"=> original  : {param_list}")
-        print(f"=> deciphered: {dec_params}")
-        print(f"////////////////////////////")
-        with open(param_list[0]['ciphertext'], 'rb') as ciphertextfile:
-            cipheredText = ciphertextfile.read()
-        AESdecipher(
-            cipheredText, param_list[3]['iv'], param_list[2]['tag'], param_list[1]['nonce'])
-        print(f"////////////////////////////")
-        with open(dec_params[0]['ciphertext'], 'rb') as ctf:
-            ct = ctf.read()
-        AESdecipher(ct, dec_params[3]['iv'],
-                    dec_params[2]['tag'], dec_params[1]['nonce'])
-        print("====================================================================")
-        print("=> Message sent!")
+    print("=> Message sent!")
 
 
 def receiveAMessage(person):
@@ -228,7 +203,7 @@ def receiveAMessage(person):
     message = AESdecipher(ciphered_message, parameters[3]['iv'],
                           parameters[2]['tag'], parameters[1]['nonce'])
     print(f"=====> This is the message: \n{message.decode()}")
-    return
+    return message
 
 
 class windowLayout:
