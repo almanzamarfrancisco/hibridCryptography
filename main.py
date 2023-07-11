@@ -1,5 +1,6 @@
 from Crypto.Cipher import AES
 from functools import partial
+from tkinter import messagebox
 from tkinter import ttk
 from tkinter import *
 import rsa
@@ -272,13 +273,23 @@ class windowLayout:
                 self.sendAMessage('Alice', 'Bert', text)
                 self.alice_text.set("")
             elif args[0] == 'receive':
-                text = "Receiving message from Bert ;P..."
+                text = f"[I] Receiving message from Bert :B..."
                 self.infoBox.insert(END, f"{text}\n")
-                text, isAuthentic = self.receiveAMessage('Alice').values()
-
+                try:
+                    text, isAuthentic = self.receiveAMessage('Alice').values()
+                except:
+                    messagebox.showerror(
+                        'Error', 'Error: Something went wrong, please send again the last message from Bert x(')
+                    return
                 self.infoBox.insert(END, f"\t -> {text}\n")
-                self.infoBox.insert(
-                    END, f"\t[I] => Is Authentic {isAuthentic}\n")
+                if self.authentic_service_is_on:
+                    authenticity_text = f""
+                    if isAuthentic:
+                        authenticity_text = f"[I] The message is authentic! :D\n"
+                    else:
+                        authenticity_text = f"[W] Key incorrect or message corrupted x(\n"
+                    self.infoBox.insert(
+                        END, f"\t{authenticity_text}\n")
             self.infoBox.see("end")
 
     def bertFunction(self, *args):
@@ -295,8 +306,12 @@ class windowLayout:
             elif args[0] == 'receive':
                 text = f"[I] Receiving message from Alice x)..."
                 self.infoBox.insert(END, f"{text}\n")
-                text, isAuthentic = self.receiveAMessage('Bert').values()
-
+                try:
+                    text, isAuthentic = self.receiveAMessage('Bert').values()
+                except:
+                    messagebox.showerror(
+                        'Error', 'Error: Something went wrong, please send again the last message from Alice x(')
+                    return
                 self.infoBox.insert(END, f"\t -> {text}\n")
                 if self.authentic_service_is_on:
                     authenticity_text = f""
