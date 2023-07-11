@@ -45,12 +45,15 @@ def AEScipher(data, key, outputfile):
 def AESdecipher(ciphertext, key, tag, nonce):
     cipher = AES.new(key, AES.MODE_EAX, nonce=nonce)
     plaintext = cipher.decrypt(ciphertext)
+    isAuthentic = False
     try:
         cipher.verify(tag)
-        print("\t[I] The message is authentic! :)")
+        isAuthentic = True
+        # print(f"\t[I] The message is authentic! :) ({isAuthentic})")
     except ValueError:
-        print("\t[E] Key incorrect or message corrupted :(")
-    return plaintext
+        # print(f"\t[E] Key incorrect or message corrupted :(")
+        isAuthentic = False
+    return {plaintext.decode(), isAuthentic}
 
 
 def makeKeysForPerson(person):
@@ -125,87 +128,6 @@ def getListFromBytes(parameters):
     return parameters_list
 
 
-def sendAMessage(sender, receiver, file_name):
-    if not os.path.exists(f'./{sender}/{file_name}'):
-        print("\t[E] Message file does not exist :(")
-        exit(1)
-    with open(f'./{sender}/{file_name}', 'rb') as message_file:
-        data = message_file.read()
-    iv = getRandomBytes(16)
-    # print(f'The plain text is: "{data.decode()}"')
-    # AES Ciphering
-    parameters = AEScipher(data, iv, f"./{receiver}/ciphered_message")
-    # RSA parameter Ciphering
-    # Set the parameters on a file
-    parameters_bytes = b''
-    with open(f"./{sender}/parameters", "+wb") as parameters_file:
-        for k in parameters:
-            try:
-                # print(bytes(k, 'utf-8') + b':' + bytes(parameters[k], 'utf-8')+b'^')
-                parameters_bytes = parameters_bytes + \
-                    bytes(k, 'utf-8') + b':' + \
-                    bytes(parameters[k], 'utf-8')+b'^'
-            except TypeError:
-                # print(bytes(k, 'utf-8') + b':' + parameters[k] + b'^')
-                parameters_bytes = parameters_bytes + \
-                    bytes(k, 'utf-8') + b':' + parameters[k] + b'^'
-        parameters_file.write(parameters_bytes)
-        parameters_file.seek(0)  # return the cursor to the beginning
-        parameters_data = parameters_file.read()
-        # print(f"\t\t => Parameters data: {parameters_data}")
-        # Cipher the parameters in a file and send it to the receiver
-        print(f"\t[I] Ciphering parameters...")
-        print(
-            f"\t\t=> The file size is {len(parameters_data)} and max block size is 53")
-        print(
-            f"\t\t=> Total of blocks is: {round(len(parameters_data)/53)}")
-        receiver_pubkey = getPubkeyFromPerson(receiver)
-        with open(f"./{receiver}/ciphered_parameters", "+wb") as ciphered_parameters_file:
-            crypto = b''
-            for i in range(0, len(parameters_data), 54):  # ciphering by 53bytes-size blocks
-                if i == 0:
-                    # print(
-                    #     f"from {i} to {i+53} len: {len(parameters_data[i:53+i])} => {parameters_data[i:53+i]}")
-                    crypto = crypto + \
-                        rsa.encrypt(parameters_data[i:53+i], receiver_pubkey)
-                else:
-                    # print(
-                    #     f"from {i} to {i+53} len: {len(parameters_data[i-1:53+i])} => {parameters_data[i-1:53+i]}")
-                    crypto = crypto + \
-                        rsa.encrypt(parameters_data[i-1:53+i], receiver_pubkey)
-            # print(
-            #     f"This is the whole message encrypted ({len(crypto)}): {crypto}")
-            ciphered_parameters_file.write(crypto)
-        print("\t[I] Parameters Ciphered successfully!")
-    print("=> Message sent!")
-
-
-def receiveAMessage(person):
-    # Get the cipheredParameters file
-    try:
-        with open(f"./{person}/ciphered_parameters", mode="rb") as cparameter_file:
-            ciphered_parameters = cparameter_file.read()
-    except FileNotFoundError:
-        print("Wait! there is no message to receive x(")
-        exit(1)
-    # Obtain person privKey
-    with open(f"./{person}/rsa/id_rsa.pem", mode='rb') as privatefile:
-        keydata = privatefile.read()
-    privkey = rsa.PrivateKey.load_pkcs1(keydata)
-    # Decrypt by 64bytes-size blocks
-    parameters_in_bytes = rsaDecryptParameterBytes(
-        ciphered_parameters, privkey)
-    parameters = getListFromBytes(parameters_in_bytes)
-    # Get the cipheredMessage file
-    with open(f"./{person}/ciphered_message", mode="rb") as cmessage_file:
-        ciphered_message = cmessage_file.read()
-    # Decrypt with obtaned parameters
-    message = AESdecipher(ciphered_message, parameters[3]['iv'],
-                          parameters[2]['tag'], parameters[1]['nonce'])
-    print(f"=====> This is the message: \n{message.decode()}")
-    return message
-
-
 class windowLayout:
     def __init__(self) -> None:
         root = Tk()
@@ -248,20 +170,91 @@ class windowLayout:
 
         root.mainloop()
 
+    def sendAMessage(self, sender, receiver, message):
+        data = bytes(message, 'utf-8')
+        iv = getRandomBytes(16)
+        # AES Ciphering
+        parameters = AEScipher(data, iv, f"./{receiver}/ciphered_message")
+        # RSA parameter Ciphering
+        # Set the parameters on a file
+        parameters_bytes = b''
+        with open(f"./{sender}/parameters", "+wb") as parameters_file:
+            for k in parameters:
+                try:
+                    parameters_bytes = parameters_bytes + \
+                        bytes(k, 'utf-8') + b':' + \
+                        bytes(parameters[k], 'utf-8')+b'^'
+                except TypeError:
+                    parameters_bytes = parameters_bytes + \
+                        bytes(k, 'utf-8') + b':' + parameters[k] + b'^'
+            parameters_file.write(parameters_bytes)
+            parameters_file.seek(0)  # return the cursor to the beginning
+            parameters_data = parameters_file.read()
+            # Cipher the parameters in a file and send it to the receiver
+            self.infoBox.insert(
+                END, f"\t[I] Ciphering parameters...\n")
+            receiver_pubkey = getPubkeyFromPerson(receiver)
+            with open(f"./{receiver}/ciphered_parameters", "+wb") as ciphered_parameters_file:
+                crypto = b''
+                # ciphering by 53bytes-size blocks
+                for i in range(0, len(parameters_data), 54):
+                    if i == 0:
+                        crypto = crypto + \
+                            rsa.encrypt(
+                                parameters_data[i:53+i], receiver_pubkey)
+                    else:
+                        crypto = crypto + \
+                            rsa.encrypt(
+                                parameters_data[i-1:53+i], receiver_pubkey)
+                ciphered_parameters_file.write(crypto)
+            self.infoBox.insert(
+                END, "\t[I] Parameters Ciphered successfully!\n")
+        self.infoBox.insert(
+            END, "[I] => Message sent!\n")
+
+    def receiveAMessage(self, person):
+        # Get the cipheredParameters file
+        try:
+            with open(f"./{person}/ciphered_parameters", mode="rb") as cparameter_file:
+                ciphered_parameters = cparameter_file.read()
+        except FileNotFoundError:
+            print("Wait! there is no message to receive x(")
+            exit(1)
+        # Obtain person privKey
+        with open(f"./{person}/rsa/id_rsa.pem", mode='rb') as privatefile:
+            keydata = privatefile.read()
+        privkey = rsa.PrivateKey.load_pkcs1(keydata)
+        # Decrypt by 64bytes-size blocks
+        parameters_in_bytes = rsaDecryptParameterBytes(
+            ciphered_parameters, privkey)
+        parameters = getListFromBytes(parameters_in_bytes)
+        # Get the cipheredMessage file
+        with open(f"./{person}/ciphered_message", mode="rb") as cmessage_file:
+            ciphered_message = cmessage_file.read()
+        # Decrypt with obtaned parameters
+        message, isAuthentic = AESdecipher(ciphered_message, parameters[3]['iv'],
+                                           parameters[2]['tag'], parameters[1]['nonce'])
+        return {message, isAuthentic}
+
     def aliceFunction(self, *args):
         if len(args):
             if args[0] == 'send':
                 text = self.alice_text.get()
                 if not text:
                     text = f"[E] Alice's text box is empty\n"
+                    return
                 self.infoBox.insert(
-                    END, f"Sending message to Bert: \n\t{text}\n")
+                    END, f"Sending message to Bert ...\n")
+                self.sendAMessage('Alice', 'Bert', text)
+                self.alice_text.set("")
             elif args[0] == 'receive':
                 text = "Receiving message from Bert ;P..."
-                print(text)
                 self.infoBox.insert(END, f"{text}\n")
+                isAuthentic, text = self.receiveAMessage('Alice')
+                self.infoBox.insert(END, f"\t{text}\n")
+                self.infoBox.insert(
+                    END, f"\t[I] => Is Authentic {isAuthentic}\n")
             self.infoBox.see("end")
-            self.alice_text.set("")
 
     def bertFunction(self, *args):
         if len(args):
@@ -269,26 +262,22 @@ class windowLayout:
                 text = self.bert_text.get()
                 if not text:
                     text = f"[E] Bert's text box is empty\n"
+                    return
                 self.infoBox.insert(
-                    END, f"Sending message to Alice: \n\t{text}\n")
+                    END, f"Sending message to Alice ...\n")
+                self.sendAMessage('Bert', 'Alice', text)
+                self.bert_text.set("")
             elif args[0] == 'receive':
                 text = f"[I] Receiving message from Alice x)..."
-                print(text)
                 self.infoBox.insert(END, f"{text}\n")
+                text, isAuthentic = self.receiveAMessage('Bert')
+                self.infoBox.insert(END, f"\t{text}\n")
+                self.infoBox.insert(
+                    END, f"\t[I] => Is Authentic {isAuthentic}\n")
             self.infoBox.see("end")
-            self.bert_text.set("")
 
 
 if __name__ == '__main__':
     print("\n\n**ETS Project**")
     init()
-    for i in sys.argv:
-        if i == 'send':
-            sendAMessage('Alice', 'Bert', 'testMessage.txt')
-            print("\n\n")
-            exit(0)
-        if i == 'receive':
-            receiveAMessage('Bert')
-            print("\n\n")
-            exit(0)
-    # windowLayout()
+    windowLayout()
