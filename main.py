@@ -203,37 +203,33 @@ class windowLayout:
         # RSA parameter Ciphering
         # Set the parameters on a file
         parameters_bytes = b''
-        with open(f"./{sender}/parameters", "+wb") as parameters_file:
-            for k in parameters:
-                try:
-                    parameters_bytes = parameters_bytes + \
-                        bytes(k, 'utf-8') + b':' + \
-                        bytes(parameters[k], 'utf-8')+b'^'
-                except TypeError:
-                    parameters_bytes = parameters_bytes + \
-                        bytes(k, 'utf-8') + b':' + parameters[k] + b'^'
-            parameters_file.write(parameters_bytes)
-            parameters_file.seek(0)  # return the cursor to the beginning
-            parameters_data = parameters_file.read()
-            # Cipher the parameters in a file and send it to the receiver
-            self.infoBox.insert(
-                END, f"\t[I] Ciphering parameters...\n")
-            receiver_pubkey = getPubkeyFromPerson(receiver)
-            with open(f"./{receiver}/ciphered_parameters", "+wb") as ciphered_parameters_file:
-                crypto = b''
-                # ciphering by 53bytes-size blocks
-                for i in range(0, len(parameters_data), 54):
-                    if i == 0:
-                        crypto = crypto + \
-                            rsa.encrypt(
-                                parameters_data[i:53+i], receiver_pubkey)
-                    else:
-                        crypto = crypto + \
-                            rsa.encrypt(
-                                parameters_data[i-1:53+i], receiver_pubkey)
-                ciphered_parameters_file.write(crypto)
-            self.infoBox.insert(
-                END, "\t[I] Parameters Ciphered successfully!\n")
+        for k in parameters:
+            try:
+                parameters_bytes = parameters_bytes + \
+                    bytes(k, 'utf-8') + b':' + \
+                    bytes(parameters[k], 'utf-8')+b'^'
+            except TypeError:
+                parameters_bytes = parameters_bytes + \
+                    bytes(k, 'utf-8') + b':' + parameters[k] + b'^'
+        # Cipher the parameters in a file and send it to the receiver
+        self.infoBox.insert(
+            END, f"\t[I] Ciphering parameters...\n")
+        receiver_pubkey = getPubkeyFromPerson(receiver)
+        with open(f"./{receiver}/ciphered_parameters", "+wb") as ciphered_parameters_file:
+            crypto = b''
+            # ciphering by 53bytes-size blocks
+            for i in range(0, len(parameters_bytes), 54):
+                if i == 0:
+                    crypto = crypto + \
+                        rsa.encrypt(
+                            parameters_bytes[i:53+i], receiver_pubkey)
+                else:
+                    crypto = crypto + \
+                        rsa.encrypt(
+                            parameters_bytes[i-1:53+i], receiver_pubkey)
+            ciphered_parameters_file.write(crypto)
+        self.infoBox.insert(
+            END, "\t[I] Parameters Ciphered successfully!\n")
         self.infoBox.insert(
             END, "[I] => Message sent!\n")
 
