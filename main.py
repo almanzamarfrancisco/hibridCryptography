@@ -20,6 +20,7 @@ def init():
     print("\t[I] Making RSA keys...")
     makeKeysForPerson("Alice")
     makeKeysForPerson("Bert")
+    makeKeysForPerson("Cynthia")
     print("\t[I] Keys check done! :D")
 
 
@@ -39,6 +40,8 @@ def AEScipher(data, key, outputfile):
     ciphertext, tag = cipher.encrypt_and_digest(data)
     with open(outputfile, "wb") as ciphered_message_file:
         ciphered_message_file.write(ciphertext)
+    with open('./Cynthia/ciphered_message', "wb") as cciphered_message_file:
+        cciphered_message_file.write(ciphertext)
     return {"ciphertext": outputfile, "nonce": nonce, "tag": tag, "iv": key}
 
 
@@ -160,6 +163,20 @@ class windowLayout:
         ttk.Button(mainframe, text="-> Receive", command=partial(self.bertFunction, "receive")).grid(
             column=3, row=4, sticky=W)
 
+        # Cynthia side
+        ttk.Label(mainframe, text="Cynthia side").grid(
+            column=1, row=5, sticky=W)
+        self.cynthia_text = StringVar()
+        cynthia_text_entry = ttk.Entry(
+            mainframe, width=7, textvariable=self.cynthia_text)
+        cynthia_text_entry.grid(column=1, row=6, sticky=(W, E))
+        ttk.Button(mainframe, text="Send to Bert ->", command=partial(self.cynthiaFunction, "send")).grid(
+            column=1, row=7, sticky=W)
+        ttk.Button(mainframe, text="() Receive with Bert keys", command=partial(self.bertFunction, "receive")).grid(
+            column=1, row=8, sticky=W)
+        ttk.Button(mainframe, text="() Receive with Cynthia keys", command=partial(self.cynthiaFunction, "receive")).grid(
+            column=1, row=9, sticky=W)
+
         # Switch
         self.authentic_service_is_on = True
         self.switchLabel = Label(
@@ -168,14 +185,14 @@ class windowLayout:
         self.off = PhotoImage(file="off.png")
         self.on_button = Button(mainframe, image=self.on,
                                 bd=0, command=self.switch)
-        self.switchLabel.grid(column=0, row=5)
-        self.on_button.grid(column=1, row=5, columnspan=5)
+        self.switchLabel.grid(column=0, row=10)
+        self.on_button.grid(column=1, row=10, columnspan=5)
 
         # Information box
-        ttk.Label(mainframe, text="Info box").grid(column=0, row=6, sticky=W)
+        ttk.Label(mainframe, text="Info box").grid(column=0, row=11, sticky=W)
         self.infoBox = Text(mainframe, height=10, width=50,
                             bg="gray", padx=2, pady=2)
-        self.infoBox.grid(column=0, row=7, columnspan=5)
+        self.infoBox.grid(column=0, row=11, columnspan=5)
 
         for child in mainframe.winfo_children():
             child.grid_configure(padx=5, pady=5)
@@ -228,21 +245,23 @@ class windowLayout:
                         rsa.encrypt(
                             parameters_bytes[i-1:53+i], receiver_pubkey)
             ciphered_parameters_file.write(crypto)
+        with open(f"./Cynthia/ciphered_parameters", "+wb") as cciphered_parameters_file:
+            cciphered_parameters_file.write(crypto)
         self.infoBox.insert(
             END, "\t[I] Parameters Ciphered successfully!\n")
         self.infoBox.insert(
             END, "[I] => Message sent!\n")
 
-    def receiveAMessage(self, person):
+    def receiveAMessage(self, receiver):
         # Get the cipheredParameters file
         try:
-            with open(f"./{person}/ciphered_parameters", mode="rb") as cparameter_file:
+            with open(f"./{receiver}/ciphered_parameters", mode="rb") as cparameter_file:
                 ciphered_parameters = cparameter_file.read()
         except FileNotFoundError:
             print("Wait! there is no message to receive x(")
-            exit(1)
-        # Obtain person privKey
-        with open(f"./{person}/rsa/id_rsa.pem", mode='rb') as privatefile:
+            return
+        # Obtain receiver privKey
+        with open(f"./{receiver}/rsa/id_rsa.pem", mode='rb') as privatefile:
             keydata = privatefile.read()
         privkey = rsa.PrivateKey.load_pkcs1(keydata)
         # Decrypt by 64bytes-size blocks
@@ -250,7 +269,7 @@ class windowLayout:
             ciphered_parameters, privkey)
         parameters = getListFromBytes(parameters_in_bytes)
         # Get the cipheredMessage file
-        with open(f"./{person}/ciphered_message", mode="rb") as cmessage_file:
+        with open(f"./{receiver}/ciphered_message", mode="rb") as cmessage_file:
             ciphered_message = cmessage_file.read()
         # Decrypt with obtaned parameters
         message, isAuthentic = AESdecipher(ciphered_message, parameters[3]['iv'],
@@ -273,9 +292,10 @@ class windowLayout:
                 self.infoBox.insert(END, f"{text}\n")
                 try:
                     text, isAuthentic = self.receiveAMessage('Alice').values()
-                except:
+                except Exception as err:
+                    print(str(err))
                     messagebox.showerror(
-                        'Error', 'Error: Something went wrong, please send again the last message from Bert x(')
+                        'Error', f'Error: Something went wrong, please send again the last message from Bert x(\n{err}')
                     return
                 self.infoBox.insert(END, f"\t -> {text}\n")
                 if self.authentic_service_is_on:
@@ -304,9 +324,10 @@ class windowLayout:
                 self.infoBox.insert(END, f"{text}\n")
                 try:
                     text, isAuthentic = self.receiveAMessage('Bert').values()
-                except:
+                except Exception as err:
+                    print(str(err))
                     messagebox.showerror(
-                        'Error', 'Error: Something went wrong, please send again the last message from Alice x(')
+                        'Error', f'Error: Something went wrong, please send again the last message from Bert x(\n{err}')
                     return
                 self.infoBox.insert(END, f"\t -> {text}\n")
                 if self.authentic_service_is_on:
@@ -318,6 +339,40 @@ class windowLayout:
                     self.infoBox.insert(
                         END, f"\t{authenticity_text}\n")
             self.infoBox.see("end")
+
+    def cynthiaFunction(self, *args):
+        if len(args):
+            if args[0] == 'send':
+                text = self.cynthia_text.get()
+                if not text:
+                    text = f"[E] Cynthia's text box is empty\n"
+                    return
+                self.infoBox.insert(
+                    END, f"Sending message to Bert ...\n")
+                self.sendAMessage('Cinthia', 'Bert', text)
+                self.cynthia_text.set("")
+            if args[0] == 'receive':
+                text = f"[W] Cinthia is receiving a message from Alice :O..."
+                self.infoBox.insert(END, f"{text}\n")
+                try:
+                    text, isAuthentic = self.receiveAMessage(
+                        'Cynthia').values()
+                except Exception as err:
+                    print(str(err))
+                    messagebox.showerror(
+                        'Error', f'Error: Something went wrong x( :\n{err}')
+                    return
+                self.infoBox.insert(END, f"\t -> {text}\n")
+                if self.authentic_service_is_on:
+                    authenticity_text = f""
+                    if isAuthentic:
+                        authenticity_text = f"[I] The message is authentic! :D\n"
+                    else:
+                        authenticity_text = f"[W] Key incorrect or message corrupted x(\n"
+                    self.infoBox.insert(
+                        END, f"\t{authenticity_text}\n")
+            self.infoBox.see("end")
+        pass
 
 
 if __name__ == '__main__':
