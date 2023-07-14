@@ -18,9 +18,10 @@ def init():
         os.makedirs('./Cynthia')
     print("\t[I] Directories checked! :)")
     print("\t[I] Making RSA keys...")
-    makeKeysForPerson("Alice")
-    makeKeysForPerson("Bert")
-    makeKeysForPerson("Cynthia")
+    makePairOfKeysFor("Alice", "Bert")
+    makePairOfKeysFor("Bert", "Alice")
+    makePairOfKeysFor("Cynthia", "Bert")
+    makePairOfKeysFor("Bert", "Cynthia")
     print("\t[I] Keys check done! :D")
 
 
@@ -59,33 +60,39 @@ def AESdecipher(ciphertext, key, tag, nonce):
     return {'plaintext': plaintext.decode(), 'isAuthentic': isAuthentic}
 
 
-def makeKeysForPerson(person):
-    if not os.path.exists(f'./{person}/rsa'):
-        os.makedirs(f'./{person}/rsa')
-    if os.path.exists(f"./{person}/rsa/id_rsa") and os.path.exists(f"./{person}/rsa/id_rsa.pem"):
-        print(f"\t\t -> {person} key files found, skipping creation...")
+def makePairOfKeysFor(receiver, sender):
+    if not os.path.exists(f'./{sender}/rsa'):
+        os.makedirs(f'./{sender}/rsa')
+    if not os.path.exists(f'./{receiver}/rsa'):
+        os.makedirs(f'./{receiver}/rsa')
+    if os.path.exists(f"./{sender}/rsa/id_{receiver}_rsa") and os.path.exists(f"./{receiver}/rsa/id_{receiver}_{sender}_rsa.pem"):
+        print(
+            f"\t\t-> {receiver} => {sender} key files found, skipping creation...")
         return
     (pubkey, privkey) = rsa.newkeys(512)
     try:
-        with open(f"./{person}/rsa/id_rsa", "wb+") as pubfile:
+        with open(f"./{sender}/rsa/id_{receiver}_rsa", "wb+") as pubfile:
             pubfile.write(pubkey.save_pkcs1())
-            print(f"\t\t=> {person} pubkey generated")
-        with open(f"./{person}/rsa/id_rsa.pem", "wb+") as privfile:
+            print(
+                f"\t\t=> id_{receiver}_rsa pubkey generated and saved on {sender} folder")
+        with open(f"./{receiver}/rsa/id_{receiver}_{sender}_rsa.pem", "wb+") as privfile:
             privfile.write(privkey.save_pkcs1())
+            print(
+                f"\t\t=> Privkey generated for {receiver}_{sender} generated")
     except FileExistsError:
         print("\t Something went really wrong! x(")
         pass
-    print(f"\t\t=> {person} pubkey generated")
+    print(f"\t\tDone!")
 
 
-def getPubkeyFromPerson(person):
-    with open(f"./{person}/rsa/id_rsa", mode='rb') as pubfile:
+def getPubkeyFrom(sender, receiver):
+    with open(f"./{sender}/rsa/id_{receiver}_rsa", mode='rb') as pubfile:
         keydata = pubfile.read()
         return rsa.PublicKey.load_pkcs1(keydata)
 
 
-def getPrivateKeyFromPerson(person):
-    with open(f"./{person}/rsa/id_rsa.pem", mode='rb') as privatefile:
+def getPrivateKeyFrom(sender, receiver):
+    with open(f"./{receiver}/rsa/id_{receiver}_{sender}_rsa.pem", mode='rb') as privatefile:
         keydata = privatefile.read()
         return rsa.PrivateKey.load_pkcs1(keydata)
 
@@ -149,7 +156,7 @@ class windowLayout:
         alice_text_entry.grid(column=0, row=2, sticky=(W, E))
         ttk.Button(mainframe, text="Send to Bert ->", command=partial(self.aliceFunction, "send")).grid(
             column=0, row=3, sticky=W)
-        ttk.Button(mainframe, text="Receive <-", command=partial(self.aliceFunction, "receive")).grid(
+        ttk.Button(mainframe, text="Receive from Bert <-", command=partial(self.aliceFunction, "receive")).grid(
             column=0, row=4, sticky=W)
 
         # Bert side
@@ -160,22 +167,24 @@ class windowLayout:
         bert_text_entry.grid(column=3, row=2, sticky=(W, E))
         ttk.Button(mainframe, text="<- Send to Alice", command=partial(self.bertFunction, "send")).grid(
             column=3, row=3, sticky=W)
-        ttk.Button(mainframe, text="-> Receive", command=partial(self.bertFunction, "receive")).grid(
+        ttk.Button(mainframe, text="-> Receive from Alice", command=partial(self.bertFunction, "receive", "Alice")).grid(
             column=3, row=4, sticky=W)
+        ttk.Button(mainframe, text="-> Receive from Cynthia", command=partial(self.bertFunction, "receive", "Cynthia")).grid(
+            column=3, row=5, sticky=W)
 
         # Cynthia side
         ttk.Label(mainframe, text="Cynthia side").grid(
-            column=1, row=5, sticky=W)
+            column=1, row=6, sticky=W)
         self.cynthia_text = StringVar()
         cynthia_text_entry = ttk.Entry(
             mainframe, width=7, textvariable=self.cynthia_text)
-        cynthia_text_entry.grid(column=1, row=6, sticky=(W, E))
+        cynthia_text_entry.grid(column=1, row=7, sticky=(W, E))
         ttk.Button(mainframe, text="Send to Bert ->", command=partial(self.cynthiaFunction, "send")).grid(
-            column=1, row=7, sticky=W)
-        ttk.Button(mainframe, text="() Receive with Bert keys", command=partial(self.cynthiaFunction, "receive", "Bert")).grid(
             column=1, row=8, sticky=W)
-        ttk.Button(mainframe, text="() Receive with Cynthia keys", command=partial(self.cynthiaFunction, "receive", "Cynthia")).grid(
+        ttk.Button(mainframe, text="() Receive with Bert keys", command=partial(self.cynthiaFunction, "receive", "Bert")).grid(
             column=1, row=9, sticky=W)
+        ttk.Button(mainframe, text="() Receive with Cynthia keys", command=partial(self.cynthiaFunction, "receive", "Cynthia")).grid(
+            column=1, row=10, sticky=W)
 
         # Switch
         self.authentic_service_is_on = True
@@ -185,14 +194,14 @@ class windowLayout:
         self.off = PhotoImage(file="off.png")
         self.on_button = Button(mainframe, image=self.on,
                                 bd=0, command=self.switch)
-        self.switchLabel.grid(column=0, row=10)
-        self.on_button.grid(column=1, row=10, columnspan=5)
+        self.switchLabel.grid(column=0, row=11)
+        self.on_button.grid(column=1, row=11, columnspan=5)
 
         # Information box
-        ttk.Label(mainframe, text="Info box").grid(column=0, row=11, sticky=W)
+        ttk.Label(mainframe, text="Info box").grid(column=0, row=12, sticky=W)
         self.infoBox = Text(mainframe, height=10, width=50,
                             bg="gray", padx=2, pady=2)
-        self.infoBox.grid(column=0, row=11, columnspan=5)
+        self.infoBox.grid(column=0, row=12, columnspan=5)
 
         for child in mainframe.winfo_children():
             child.grid_configure(padx=5, pady=5)
@@ -231,7 +240,7 @@ class windowLayout:
         # Cipher the parameters in a file and send it to the receiver
         self.infoBox.insert(
             END, f"\t[I] Ciphering parameters...\n")
-        receiver_pubkey = getPubkeyFromPerson(receiver)
+        receiver_pubkey = getPubkeyFrom(sender, receiver)
         with open(f"./{receiver}/ciphered_parameters", "+wb") as ciphered_parameters_file:
             crypto = b''
             # ciphering by 53bytes-size blocks
@@ -259,9 +268,7 @@ class windowLayout:
             print("Wait! there is no message to receive x(")
             return
         # Obtain receiver privKey
-        with open(f"./{receiver}/rsa/id_rsa.pem", mode='rb') as privatefile:
-            keydata = privatefile.read()
-        privkey = rsa.PrivateKey.load_pkcs1(keydata)
+        privkey = getPrivateKeyFrom(sender, receiver)
         # Decrypt by 64bytes-size blocks
         parameters_in_bytes = rsaDecryptParameterBytes(
             ciphered_parameters, privkey)
@@ -318,16 +325,16 @@ class windowLayout:
                     END, f"Sending message to Alice ...\n")
                 self.sendAMessage('Bert', 'Alice', text)
                 self.bert_text.set("")
-            elif args[0] == 'receive':
+            elif args[0] == 'receive' and args[1]:
                 text = f"[I] Receiving message from Alice x)..."
                 self.infoBox.insert(END, f"{text}\n")
                 try:
                     text, isAuthentic = self.receiveAMessage(
-                        'Alice', 'Bert').values()
+                        args[1], 'Bert').values()
                 except Exception as err:
                     print(str(err))
                     messagebox.showerror(
-                        'Error', f'Error: Something went wrong, please send again the last message from Bert x(\n{err}')
+                        'Error', f'Error: Something went wrong, please send again the last message x(\n{err}')
                     return
                 self.infoBox.insert(END, f"\t -> {text}\n")
                 if self.authentic_service_is_on:
@@ -338,6 +345,10 @@ class windowLayout:
                         authenticity_text = f"[W] Key incorrect or message corrupted x(\n"
                     self.infoBox.insert(
                         END, f"\t{authenticity_text}\n")
+            else:
+                messagebox.showerror(
+                    'Error', f"Error: We couldn't know who is sending the message x(\n{err}")
+                return
             self.infoBox.see("end")
 
     def cynthiaFunction(self, *args):
@@ -349,18 +360,14 @@ class windowLayout:
                     return
                 self.infoBox.insert(
                     END, f"Sending message to Bert ...\n")
-                self.sendAMessage('Cinthia', 'Bert', text)
+                self.sendAMessage('Cynthia', 'Bert', text)
                 self.cynthia_text.set("")
-            if args[0] == 'receive ':
-                text = f"[W] Cinthia is receiving a message from Alice :O..."
+            elif args[0] == 'receive' and args[1]:
+                text = f"[W] Cynthia is receiving a message from Alice :O..."
                 self.infoBox.insert(END, f"{text}\n")
                 try:
-                    if args[1] == 'Cynthia':
-                        text, isAuthentic = self.receiveAMessage(
-                            'Alice', 'Cynthia').values()
-                    if args[1] == 'Bert':
-                        text, isAuthentic = self.receiveAMessage(
-                            'Alice', 'Bert').values()
+                    text, isAuthentic = self.receiveAMessage(
+                        "Alice", args[1]).values()
                 except Exception as err:
                     print(str(err))
                     messagebox.showerror(
@@ -375,8 +382,11 @@ class windowLayout:
                         authenticity_text = f"[W] Key incorrect or message corrupted x(\n"
                     self.infoBox.insert(
                         END, f"\t{authenticity_text}\n")
+            else:
+                messagebox.showerror(
+                    'Error', f"Error: We couldn't know witch Keys we have to use x(\n")
+                return
             self.infoBox.see("end")
-        pass
 
 
 if __name__ == '__main__':
