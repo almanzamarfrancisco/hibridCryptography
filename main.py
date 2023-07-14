@@ -172,9 +172,9 @@ class windowLayout:
         cynthia_text_entry.grid(column=1, row=6, sticky=(W, E))
         ttk.Button(mainframe, text="Send to Bert ->", command=partial(self.cynthiaFunction, "send")).grid(
             column=1, row=7, sticky=W)
-        ttk.Button(mainframe, text="() Receive with Bert keys", command=partial(self.bertFunction, "receive")).grid(
+        ttk.Button(mainframe, text="() Receive with Bert keys", command=partial(self.cynthiaFunction, "receive", "Bert")).grid(
             column=1, row=8, sticky=W)
-        ttk.Button(mainframe, text="() Receive with Cynthia keys", command=partial(self.cynthiaFunction, "receive")).grid(
+        ttk.Button(mainframe, text="() Receive with Cynthia keys", command=partial(self.cynthiaFunction, "receive", "Cynthia")).grid(
             column=1, row=9, sticky=W)
 
         # Switch
@@ -245,14 +245,12 @@ class windowLayout:
                         rsa.encrypt(
                             parameters_bytes[i-1:53+i], receiver_pubkey)
             ciphered_parameters_file.write(crypto)
-        with open(f"./Cynthia/ciphered_parameters", "+wb") as cciphered_parameters_file:
-            cciphered_parameters_file.write(crypto)
         self.infoBox.insert(
             END, "\t[I] Parameters Ciphered successfully!\n")
         self.infoBox.insert(
             END, "[I] => Message sent!\n")
 
-    def receiveAMessage(self, receiver):
+    def receiveAMessage(self, sender, receiver):
         # Get the cipheredParameters file
         try:
             with open(f"./{receiver}/ciphered_parameters", mode="rb") as cparameter_file:
@@ -291,7 +289,8 @@ class windowLayout:
                 text = f"[I] Receiving message from Bert :B..."
                 self.infoBox.insert(END, f"{text}\n")
                 try:
-                    text, isAuthentic = self.receiveAMessage('Alice').values()
+                    text, isAuthentic = self.receiveAMessage(
+                        'Bert', 'Alice').values()
                 except Exception as err:
                     print(str(err))
                     messagebox.showerror(
@@ -323,7 +322,8 @@ class windowLayout:
                 text = f"[I] Receiving message from Alice x)..."
                 self.infoBox.insert(END, f"{text}\n")
                 try:
-                    text, isAuthentic = self.receiveAMessage('Bert').values()
+                    text, isAuthentic = self.receiveAMessage(
+                        'Alice', 'Bert').values()
                 except Exception as err:
                     print(str(err))
                     messagebox.showerror(
@@ -351,12 +351,16 @@ class windowLayout:
                     END, f"Sending message to Bert ...\n")
                 self.sendAMessage('Cinthia', 'Bert', text)
                 self.cynthia_text.set("")
-            if args[0] == 'receive':
+            if args[0] == 'receive ':
                 text = f"[W] Cinthia is receiving a message from Alice :O..."
                 self.infoBox.insert(END, f"{text}\n")
                 try:
-                    text, isAuthentic = self.receiveAMessage(
-                        'Cynthia').values()
+                    if args[1] == 'Cynthia':
+                        text, isAuthentic = self.receiveAMessage(
+                            'Alice', 'Cynthia').values()
+                    if args[1] == 'Bert':
+                        text, isAuthentic = self.receiveAMessage(
+                            'Alice', 'Bert').values()
                 except Exception as err:
                     print(str(err))
                     messagebox.showerror(
