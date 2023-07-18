@@ -156,8 +156,10 @@ class windowLayout:
         alice_text_entry.grid(column=0, row=2, sticky=(W, E))
         ttk.Button(mainframe, text="Send to Bert ->", command=partial(self.aliceFunction, "send")).grid(
             column=0, row=3, sticky=W)
-        ttk.Button(mainframe, text="Receive from Bert <-", command=partial(self.aliceFunction, "receive")).grid(
+        ttk.Button(mainframe, text="Send song to Bert ->", command=partial(self.aliceFunction, "send", "file")).grid(
             column=0, row=4, sticky=W)
+        ttk.Button(mainframe, text="Receive from Bert <-", command=partial(self.aliceFunction, "receive")).grid(
+            column=0, row=5, sticky=W)
 
         # Bert side
         ttk.Label(mainframe, text="Bert side").grid(column=3, row=0, sticky=E)
@@ -178,13 +180,13 @@ class windowLayout:
         self.cynthia_text = StringVar()
         cynthia_text_entry = ttk.Entry(
             mainframe, width=7, textvariable=self.cynthia_text)
-        cynthia_text_entry.grid(column=1, row=7, sticky=(W, E))
+        cynthia_text_entry.grid(column=1, row=8, sticky=(W, E))
         ttk.Button(mainframe, text="Send to Bert ->", command=partial(self.cynthiaFunction, "send")).grid(
-            column=1, row=8, sticky=W)
-        ttk.Button(mainframe, text="() Receive with Bert keys", command=partial(self.cynthiaFunction, "receive", "Bert")).grid(
             column=1, row=9, sticky=W)
-        ttk.Button(mainframe, text="() Receive with Cynthia keys", command=partial(self.cynthiaFunction, "receive", "Cynthia")).grid(
+        ttk.Button(mainframe, text="() Receive with Bert keys", command=partial(self.cynthiaFunction, "receive", "Bert")).grid(
             column=1, row=10, sticky=W)
+        ttk.Button(mainframe, text="() Receive with Cynthia keys", command=partial(self.cynthiaFunction, "receive", "Cynthia")).grid(
+            column=1, row=11, sticky=W)
 
         # Switch
         self.authentic_service_is_on = True
@@ -194,14 +196,14 @@ class windowLayout:
         self.off = PhotoImage(file="off.png")
         self.on_button = Button(mainframe, image=self.on,
                                 bd=0, command=self.switch)
-        self.switchLabel.grid(column=0, row=11)
-        self.on_button.grid(column=1, row=11, columnspan=5)
+        self.switchLabel.grid(column=0, row=12)
+        self.on_button.grid(column=1, row=12, columnspan=5)
 
         # Information box
-        ttk.Label(mainframe, text="Info box").grid(column=0, row=12, sticky=W)
+        ttk.Label(mainframe, text="Info box").grid(column=0, row=13, sticky=W)
         self.infoBox = Text(mainframe, height=10, width=50,
                             bg="gray", padx=2, pady=2)
-        self.infoBox.grid(column=0, row=12, columnspan=5)
+        self.infoBox.grid(column=0, row=14, columnspan=5)
 
         for child in mainframe.winfo_children():
             child.grid_configure(padx=5, pady=5)
@@ -221,10 +223,14 @@ class windowLayout:
                 text="Authenticity service On ", fg="green")
             self.authentic_service_is_on = True
 
-    def sendAMessage(self, sender, receiver, message):
-        data = bytes(message, 'utf-8')
+    def sendAMessage(self, sender, receiver, message, *args):
         iv = getRandomBytes(16)
         # AES Ciphering
+        if len(args):
+            with open(f'{args[0]}', 'rb+') as songfile:
+                data = songfile.read()
+        else:
+            data = bytes(message, 'utf-8')
         parameters = AEScipher(data, iv, f"./{receiver}/ciphered_message")
         # RSA parameter Ciphering
         # Set the parameters on a file
@@ -288,9 +294,12 @@ class windowLayout:
                 if not text:
                     text = f"[E] Alice's text box is empty\n"
                     return
-                self.infoBox.insert(
-                    END, f"Sending message to Bert ...\n")
-                self.sendAMessage('Alice', 'Bert', text)
+                self.infoBox.insert(END, f"Sending message to Bert ...\n")
+                if len(args) == 2 and args[1] == 'file':
+                    self.sendAMessage('Alice', 'Bert', text,
+                                      self.alice_text.get())
+                else:
+                    self.sendAMessage('Alice', 'Bert', text)
                 self.alice_text.set("")
             elif args[0] == 'receive':
                 text = f"[I] Receiving message from Bert :B..."
