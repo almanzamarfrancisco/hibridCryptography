@@ -19,9 +19,6 @@ def init():
     print("\t[I] Directories checked! :)")
     print("\t[I] Making RSA keys...")
     makePairOfKeysFor("Alice", "Bert")
-    makePairOfKeysFor("Bert", "Alice")
-    makePairOfKeysFor("Cynthia", "Bert")
-    makePairOfKeysFor("Bert", "Cynthia")
     print("\t[I] Keys check done! :D")
 
 
