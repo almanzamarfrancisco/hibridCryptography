@@ -31,18 +31,10 @@ def AEScipher(data, key):
     return ciphertext
 
 
-def AESdecipher(ciphertext, key, tag, nonce):
-    cipher = AES.new(key, AES.MODE_CBC, nonce=nonce)
+def AESdecipher(ciphertext, key):
+    cipher = AES.new(key, AES.MODE_CBC)
     plaintext = cipher.decrypt(ciphertext)
-    isAuthentic = False
-    try:
-        cipher.verify(tag)
-        isAuthentic = True
-        # print(f"\t[I] The message is authentic! :) ({isAuthentic})")
-    except ValueError:
-        # print(f"\t[E] Key incorrect or message corrupted :(")
-        isAuthentic = False
-    return {'plaintext': plaintext.decode(), 'isAuthentic': isAuthentic}
+    return plaintext
 
 
 def makePairOfKeys():
@@ -237,8 +229,8 @@ class windowLayout:
         # print(f"Signature: {hex(signature)}")
         with open(f"./signature", "w+") as signaturefile:
             signaturefile.write(f"{hex(signature)}")
-        with open(f"./output", "w+") as outputfile:
-            outputfile.write(f"{ciphered_key}\n\n{cipher_text}")
+        with open(f"./output", "wb+") as outputfile:
+            outputfile.write(ciphered_key+b"\n\n"+cipher_text)
         self.infoBox.insert(END, "\n[I] Encryption Done!\n")
         self.filename_text.set("")
         self.key_filename_text.set("")
@@ -249,10 +241,17 @@ class windowLayout:
             keydata = privatefile.read()
             privkey = rsa.PrivateKey.load_pkcs1(keydata)
         with open(self.filename_text.get(), mode='rb+') as cipheredfile:
-            ciphered_text = cipheredfile.read()
-        plaintext = rsa.decrypt(ciphered_text, privkey)
+            data = cipheredfile.read()
+        ciphered_key = data[:data.find(b"\n\n")]
+        deciphered_key = rsa.decrypt(ciphered_key, privkey)
+        ciphered_text = data[data.find(b"\n\n")+2:]
+        # AES decryption
+        plaintext = AESdecipher(ciphered_text, deciphered_key)
         print(plaintext)
-
+        with open(f"./plaintext.txt", "wb+") as outputfile:
+            outputfile.write(plaintext)
+        # RSA Decryption for digital sign
+        
     
 
 if __name__ == '__main__':
