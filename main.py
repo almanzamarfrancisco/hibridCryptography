@@ -1,26 +1,19 @@
 from Crypto.Cipher import AES
+from Crypto.PublicKey import RSA
+from Crypto.Util.Padding import pad
 from functools import partial
 from tkinter import messagebox
 from tkinter import ttk
 from tkinter import *
+from tkinter import filedialog as fd
+from hashlib import sha512
 import rsa
 import os
 
 
 def init():
     # Make directories and keys if don't exist
-    print("\t[I] Checking directories and making keys...")
-    if not os.path.exists('./Alice'):
-        os.makedirs('./Alice')
-    if not os.path.exists('./Bert'):
-        os.makedirs('./Bert')
-    if not os.path.exists('./Cynthia'):
-        os.makedirs('./Cynthia')
-    print("\t[I] Directories checked! :)")
-    print("\t[I] Making RSA keys...")
-    makePairOfKeysFor("Alice", "Bert")
-    print("\t[I] Keys check done! :D")
-
+    makePairOfKeys()
 
 def getRandomBytes(size):
     iv = os.urandom(size)
@@ -32,19 +25,14 @@ def getRandomBytes(size):
     return iv
 
 
-def AEScipher(data, key, outputfile):
-    cipher = AES.new(key, AES.MODE_EAX)
-    nonce = cipher.nonce
-    ciphertext, tag = cipher.encrypt_and_digest(data)
-    with open(outputfile, "wb") as ciphered_message_file:
-        ciphered_message_file.write(ciphertext)
-    with open('./Cynthia/ciphered_message', "wb") as cciphered_message_file:
-        cciphered_message_file.write(ciphertext)
-    return {"ciphertext": outputfile, "nonce": nonce, "tag": tag, "iv": key}
+def AEScipher(data, key):
+    cipher = AES.new(key, AES.MODE_CBC)
+    ciphertext = cipher.encrypt(pad(data, AES.block_size))
+    return ciphertext
 
 
 def AESdecipher(ciphertext, key, tag, nonce):
-    cipher = AES.new(key, AES.MODE_EAX, nonce=nonce)
+    cipher = AES.new(key, AES.MODE_CBC, nonce=nonce)
     plaintext = cipher.decrypt(ciphertext)
     isAuthentic = False
     try:
@@ -57,28 +45,32 @@ def AESdecipher(ciphertext, key, tag, nonce):
     return {'plaintext': plaintext.decode(), 'isAuthentic': isAuthentic}
 
 
-def makePairOfKeysFor(receiver, sender):
-    if not os.path.exists(f'./{sender}/rsa'):
-        os.makedirs(f'./{sender}/rsa')
-    if not os.path.exists(f'./{receiver}/rsa'):
-        os.makedirs(f'./{receiver}/rsa')
-    if os.path.exists(f"./{sender}/rsa/id_{receiver}_rsa") and os.path.exists(f"./{receiver}/rsa/id_{receiver}_{sender}_rsa.pem"):
-        print(
-            f"\t\t-> {receiver} => {sender} key files found, skipping creation...")
+def makePairOfKeys():
+    if not os.path.exists(f'./rsa'):
+        os.makedirs(f'./rsa')
+    if os.path.exists(f"./rsa/a_pubkey_rsa") and os.path.exists(f"./rsa/a_privkey_rsa.pem") and os.path.exists(f"./rsa/b_pubkey_rsa") and os.path.exists(f"./rsa/b_privkey_rsa.pem"):
+        print(f"\t\t-> key files found, skipping creation...")
         return
-    (pubkey, privkey) = rsa.newkeys(512)
     try:
-        with open(f"./{sender}/rsa/id_{receiver}_rsa", "wb+") as pubfile:
-            pubfile.write(pubkey.save_pkcs1())
-            print(
-                f"\t\t=> id_{receiver}_rsa pubkey generated and saved on {sender} folder")
-        with open(f"./{receiver}/rsa/id_{receiver}_{sender}_rsa.pem", "wb+") as privfile:
-            privfile.write(privkey.save_pkcs1())
-            print(
-                f"\t\t=> Privkey generated for {receiver}_{sender} generated")
+        # RSA with signature
+        keyPair = RSA.generate(bits=1024)
+        with open(f"./rsa/a_pubkey_rsa", "w+") as pubfile:
+            pubfile.write(f"-----RSA Public Key-----\n{hex(keyPair.e)}\n\n{keyPair.n}\n-----RSA Public Key END-----")
+            print(f"\t\t=> A pubkey generated and saved on rsa folder")
+        with open(f"./rsa/a_privkey_rsa.pem", "w+") as privfile:
+            privfile.write(f"-----RSA Private Key-----\n{hex(keyPair.d)}\n\n{keyPair.n}\n-----RSA Private Key END-----")
+            print(f"\t\t=> A privkey generated on rsa generated")
+
+        # RSA without signature
+        (b_pubkey, b_privkey) = rsa.newkeys(512)
+        with open(f"./rsa/b_pubkey_rsa", "wb+") as pubfile:
+            pubfile.write(b_pubkey.save_pkcs1())
+            print(f"\t\t=> B pubkey generated and saved on rsa folder")
+        with open(f"./rsa/b_privkey_rsa.pem", "wb+") as privfile:
+            privfile.write(b_privkey.save_pkcs1())
+            print(f"\t\t=> B privkey generated on rsa generated")
     except FileExistsError:
         print("\t Something went really wrong! x(")
-        pass
     print(f"\t\tDone!")
 
 
@@ -141,259 +133,127 @@ class windowLayout:
         root.title("ETS project")
 
         mainframe = ttk.Frame(root, padding="3 3 12 12")
-        mainframe.grid(column=0, row=0, sticky=(N, W, E, S))
+        mainframe.grid(column=0, row=0, sticky=(N, W, E, S)) # type: ignore
         root.columnconfigure(0, weight=1)
         root.rowconfigure(0, weight=1)
 
-        # Alice side
-        ttk.Label(mainframe, text="Alice side").grid(column=0, row=0, sticky=W)
-        self.alice_text = StringVar()
-        alice_text_entry = ttk.Entry(
-            mainframe, width=7, textvariable=self.alice_text)
-        alice_text_entry.grid(column=0, row=2, sticky=(W, E))
-        ttk.Button(mainframe, text="Send to Bert ->", command=partial(self.aliceFunction, "send")).grid(
-            column=0, row=3, sticky=W)
-        ttk.Button(mainframe, text="Send song to Bert ->", command=partial(self.aliceFunction, "send", "file")).grid(
-            column=0, row=4, sticky=W)
-        ttk.Button(mainframe, text="Receive from Bert <-", command=partial(self.aliceFunction, "receive")).grid(
-            column=0, row=5, sticky=W)
-
-        # Bert side
-        ttk.Label(mainframe, text="Bert side").grid(column=3, row=0, sticky=E)
-        self.bert_text = StringVar()
-        bert_text_entry = ttk.Entry(
-            mainframe, width=7, textvariable=self.bert_text)
-        bert_text_entry.grid(column=3, row=2, sticky=(W, E))
-        ttk.Button(mainframe, text="<- Send to Alice", command=partial(self.bertFunction, "send")).grid(
-            column=3, row=3, sticky=W)
-        ttk.Button(mainframe, text="-> Receive from Alice", command=partial(self.bertFunction, "receive", "Alice")).grid(
-            column=3, row=4, sticky=W)
-        ttk.Button(mainframe, text="-> Receive from Cynthia", command=partial(self.bertFunction, "receive", "Cynthia")).grid(
-            column=3, row=5, sticky=W)
-
-        # Cynthia side
-        ttk.Label(mainframe, text="Cynthia side").grid(
-            column=1, row=6, sticky=W)
-        self.cynthia_text = StringVar()
-        cynthia_text_entry = ttk.Entry(
-            mainframe, width=7, textvariable=self.cynthia_text)
-        cynthia_text_entry.grid(column=1, row=8, sticky=(W, E))
-        ttk.Button(mainframe, text="Send to Bert ->", command=partial(self.cynthiaFunction, "send")).grid(
-            column=1, row=9, sticky=W)
-        ttk.Button(mainframe, text="() Receive with Bert keys", command=partial(self.cynthiaFunction, "receive", "Bert")).grid(
-            column=1, row=10, sticky=W)
-        ttk.Button(mainframe, text="() Receive with Cynthia keys", command=partial(self.cynthiaFunction, "receive", "Cynthia")).grid(
-            column=1, row=11, sticky=W)
-
+        # Interface
+        ttk.Label(mainframe, text="Press next button to choose the action you want to do").grid(column=0, row=0, sticky=W)
+        
         # Switch
-        self.authentic_service_is_on = True
-        self.switchLabel = Label(
-            mainframe, text="Authenticity service On ", fg="green", font=("Helvetica"))
-        self.on = PhotoImage(file="on.png")
-        self.off = PhotoImage(file="off.png")
-        self.on_button = Button(mainframe, image=self.on,
-                                bd=0, command=self.switch)
-        self.switchLabel.grid(column=0, row=12)
-        self.on_button.grid(column=1, row=12, columnspan=5)
+        self.action_switch = True
+        self.switchLabel = Label(mainframe, text="Action: ", font=("Helvetica"))
+        self.switchLabel.grid(column=0, row=1)
+        self.switch_button = Button(mainframe, text="Encrypt", bd=0, command=self.switch)
+        self.switch_button.grid(column=0, row=2)
+
+        # Checkboxes
+        self.sign_value = IntVar()
+        self.verification_value = IntVar()
+        self.sing_check = Checkbutton(mainframe, text = "Signing", variable = self.sign_value,onvalue = 1, offvalue = 0, height=1, width = 10)
+        self.sign_verification = Checkbutton(mainframe, text = "Varification", variable = self.verification_value, onvalue = 1, offvalue = 0, height=1, width = 10)
+        self.sing_check.grid(column=0, row=3)
+        self.sign_verification.grid(column=0, row=4)
+
+        # Key File selection
+        self.key_file_selection = Button(mainframe, text="Select the key file", bd=0, command=partial(self.select_file,"key"))
+        self.key_file_selection.grid(column=0, row=5)
+        self.key_filename_text = StringVar()
+        key_filename_text_entry = ttk.Entry(mainframe, width=6, textvariable=self.key_filename_text)
+        key_filename_text_entry.grid(column=0, row=7, sticky=(W, E)) # type: ignore
+
+        # File selection
+        self.file_selection = Button(mainframe, text="Select a file", bd=0, command=partial(self.select_file, "song"))
+        self.file_selection.grid(column=0, row=8)
+        self.filename_text = StringVar()
+        filename_text_entry = ttk.Entry(mainframe, width=5, textvariable=self.filename_text)
+        filename_text_entry.grid(column=0, row=9, sticky=(W, E)) # type: ignore
+
+        # Do it button
+        self.action_button = Button(mainframe, text="Do it!", bd=0, command=partial(self.action, "arg"))
+        self.action_button.grid(column=0, row=10)
 
         # Information box
-        ttk.Label(mainframe, text="Info box").grid(column=0, row=13, sticky=W)
-        self.infoBox = Text(mainframe, height=10, width=50,
-                            bg="gray", padx=2, pady=2)
-        self.infoBox.grid(column=0, row=14, columnspan=5)
+        ttk.Label(mainframe, text="Info box").grid(column=0, row=11, sticky=W)
+        self.infoBox = Text(mainframe, height=10, width=50,bg="gray", padx=2, pady=2)
+        self.infoBox.grid(column=0, row=12, columnspan=5)
 
         for child in mainframe.winfo_children():
             child.grid_configure(padx=5, pady=5)
 
         root.mainloop()
 
-    def switch(self):
-        self.authentic_service_is_on
-        # Determine is on or off
-        if self.authentic_service_is_on:
-            self.on_button.config(image=self.off)
-            self.switchLabel.config(text="Authenticity service Off", fg="grey")
-            self.authentic_service_is_on = False
+    def switch(self): # self.action_switch True = Encrypt | False = Decrypt
+        # Determine is encrypt or decrypt
+        if self.action_switch:
+            self.switch_button.config(text="Decrypt")
+            self.action_switch = False
         else:
-            self.on_button.config(image=self.on)
-            self.switchLabel.config(
-                text="Authenticity service On ", fg="green")
-            self.authentic_service_is_on = True
+            self.switch_button.config(text="Encrypt")
+            self.action_switch = True
 
-    def sendAMessage(self, sender, receiver, message, *args):
-        iv = getRandomBytes(16)
+    def select_file(self, args):
+        filetypes = (
+            ('All files', '*'),
+        )
+        filename = fd.askopenfilename(
+            title='Open a file',
+            initialdir=os.path.dirname(os.path.realpath(__file__)),
+            filetypes=filetypes)
+        if args == 'song':
+            self.filename_text.set(filename)
+        elif args == 'key':
+            self.key_filename_text.set(filename)
+            
+    def action(self, *args):
+        # print("Action gotten")
+        # print(f"Variables values: \n\tSwitchButton: {self.action_switch} \n\tSigning: {self.sign_value.get()}, \n\tVer: {self.verification_value.get()}")
+        if self.action_switch: # Encrypt
+            self.encrypt(self.filename_text.get())
+        else: # Decrypt
+            self.decrypt(self.filename_text.get())   
+    def encrypt(self, filename, *args):
+        AES_key = getRandomBytes(16)
+        with open(filename, mode='rb') as file:
+            data = file.read()
         # AES Ciphering
-        if len(args):
-            with open(f'{args[0]}', 'rb+') as songfile:
-                data = songfile.read()
-        else:
-            data = bytes(message, 'utf-8')
-        parameters = AEScipher(data, iv, f"./{receiver}/ciphered_message")
-        # RSA parameter Ciphering
-        # Set the parameters on a file
-        parameters_bytes = b''
-        for k in parameters:
-            try:
-                parameters_bytes = parameters_bytes + \
-                    bytes(k, 'utf-8') + b':' + \
-                    bytes(parameters[k], 'utf-8')+b'^'
-            except TypeError:
-                parameters_bytes = parameters_bytes + \
-                    bytes(k, 'utf-8') + b':' + parameters[k] + b'^'
-        # Cipher the parameters in a file and send it to the receiver
-        self.infoBox.insert(
-            END, f"\t[I] Ciphering parameters...\n")
-        receiver_pubkey = getPubkeyFrom(sender, receiver)
-        with open(f"./{receiver}/ciphered_parameters", "+wb") as ciphered_parameters_file:
-            crypto = b''
-            # ciphering by 53bytes-size blocks
-            for i in range(0, len(parameters_bytes), 54):
-                if i == 0:
-                    crypto = crypto + \
-                        rsa.encrypt(
-                            parameters_bytes[i:53+i], receiver_pubkey)
-                else:
-                    crypto = crypto + \
-                        rsa.encrypt(
-                            parameters_bytes[i-1:53+i], receiver_pubkey)
-            ciphered_parameters_file.write(crypto)
-        self.infoBox.insert(
-            END, "\t[I] Parameters Ciphered successfully!\n")
-        self.infoBox.insert(
-            END, "[I] => Message sent!\n")
+        cipher_text = AEScipher(data, AES_key)
+        # print(cipher_text)
+        # RSA Encryption for AES Key
+        with open(f'./rsa/b_pubkey_rsa', mode='rb') as pubfile: # Bert Public key selected by default
+            keydata = pubfile.read()
+        pubkey = rsa.PublicKey.load_pkcs1(keydata)
+        ciphered_key = rsa.encrypt(AES_key, pubkey)
+        # print("AES key Encrypted\n\t",ciphered_key)
+        # RSA Encryption for digital sign
+        print("\nLet's take 21 elements\n",data[:21])
+        hash = int.from_bytes(sha512(data[:21]).digest(), byteorder='big')
+        with open(self.key_filename_text.get(), mode='r') as privfile: # User select private key
+            keydata = privfile.read()
+        n_start = keydata.find("\n\n")+2
+        n = int(keydata[n_start:keydata.find("-----RSA Private Key END-----")], 16)
+        d = int(keydata[keydata.find("\n\n") -1:keydata.find("\n\n")], 16)
+        signature = pow(hash, d, n)
+        # print(f"Signature: {hex(signature)}")
+        with open(f"./signature", "w+") as signaturefile:
+            signaturefile.write(f"{hex(signature)}")
+        with open(f"./output", "w+") as outputfile:
+            outputfile.write(f"{ciphered_key}\n\n{cipher_text}")
+        self.infoBox.insert(END, "\n[I] Encryption Done!\n")
+        self.filename_text.set("")
+        self.key_filename_text.set("")
 
-    def receiveAMessage(self, sender, receiver):
-        # Get the cipheredParameters file
-        try:
-            with open(f"./{receiver}/ciphered_parameters", mode="rb") as cparameter_file:
-                ciphered_parameters = cparameter_file.read()
-        except FileNotFoundError:
-            print("Wait! there is no message to receive x(")
-            return
-        # Obtain receiver privKey
-        privkey = getPrivateKeyFrom(sender, receiver)
-        # Decrypt by 64bytes-size blocks
-        parameters_in_bytes = rsaDecryptParameterBytes(
-            ciphered_parameters, privkey)
-        parameters = getListFromBytes(parameters_in_bytes)
-        # Get the cipheredMessage file
-        with open(f"./{receiver}/ciphered_message", mode="rb") as cmessage_file:
-            ciphered_message = cmessage_file.read()
-        # Decrypt with obtaned parameters
-        message, isAuthentic = AESdecipher(ciphered_message, parameters[3]['iv'],
-                                           parameters[2]['tag'], parameters[1]['nonce']).values()
-        return {'message': message, 'isAuthentic': isAuthentic}
+    def decrypt(self, filename):
+       # RSA decrypt for AES key
+        with open(self.key_filename_text.get(), mode='rb') as privatefile:
+            keydata = privatefile.read()
+            privkey = rsa.PrivateKey.load_pkcs1(keydata)
+        with open(self.filename_text.get(), mode='rb+') as cipheredfile:
+            ciphered_text = cipheredfile.read()
+        plaintext = rsa.decrypt(ciphered_text, privkey)
+        print(plaintext)
 
-    def aliceFunction(self, *args):
-        if len(args):
-            if args[0] == 'send':
-                text = self.alice_text.get()
-                if not text:
-                    text = f"[E] Alice's text box is empty\n"
-                    return
-                self.infoBox.insert(END, f"Sending message to Bert ...\n")
-                if len(args) == 2 and args[1] == 'file':
-                    self.sendAMessage('Alice', 'Bert', text,
-                                      self.alice_text.get())
-                else:
-                    self.sendAMessage('Alice', 'Bert', text)
-                self.alice_text.set("")
-            elif args[0] == 'receive':
-                text = f"[I] Receiving message from Bert :B..."
-                self.infoBox.insert(END, f"{text}\n")
-                try:
-                    text, isAuthentic = self.receiveAMessage(
-                        'Bert', 'Alice').values()
-                except Exception as err:
-                    print(str(err))
-                    messagebox.showerror(
-                        'Error', f'Error: Something went wrong, please send again the last message from Bert x(\n{err}')
-                    return
-                self.infoBox.insert(END, f"\t -> {text}\n")
-                if self.authentic_service_is_on:
-                    authenticity_text = f""
-                    if isAuthentic:
-                        authenticity_text = f"[I] The message is authentic! :D\n"
-                    else:
-                        authenticity_text = f"[W] Key incorrect or message corrupted x(\n"
-                    self.infoBox.insert(
-                        END, f"\t{authenticity_text}\n")
-            self.infoBox.see("end")
-
-    def bertFunction(self, *args):
-        if len(args):
-            if args[0] == 'send':
-                text = self.bert_text.get()
-                if not text:
-                    text = f"[E] Bert's text box is empty\n"
-                    return
-                self.infoBox.insert(
-                    END, f"Sending message to Alice ...\n")
-                self.sendAMessage('Bert', 'Alice', text)
-                self.bert_text.set("")
-            elif args[0] == 'receive' and args[1]:
-                text = f"[I] Receiving message from Alice x)..."
-                self.infoBox.insert(END, f"{text}\n")
-                try:
-                    text, isAuthentic = self.receiveAMessage(
-                        args[1], 'Bert').values()
-                except Exception as err:
-                    print(str(err))
-                    messagebox.showerror(
-                        'Error', f'Error: Something went wrong, please send again the last message x(\n{err}')
-                    return
-                self.infoBox.insert(END, f"\t -> {text}\n")
-                if self.authentic_service_is_on:
-                    authenticity_text = f""
-                    if isAuthentic:
-                        authenticity_text = f"[I] The message is authentic! :D\n"
-                    else:
-                        authenticity_text = f"[W] Key incorrect or message corrupted x(\n"
-                    self.infoBox.insert(
-                        END, f"\t{authenticity_text}\n")
-            else:
-                messagebox.showerror(
-                    'Error', f"Error: We couldn't know who is sending the message x(\n{err}")
-                return
-            self.infoBox.see("end")
-
-    def cynthiaFunction(self, *args):
-        if len(args):
-            if args[0] == 'send':
-                text = self.cynthia_text.get()
-                if not text:
-                    text = f"[E] Cynthia's text box is empty\n"
-                    return
-                self.infoBox.insert(
-                    END, f"Sending message to Bert ...\n")
-                self.sendAMessage('Cynthia', 'Bert', text)
-                self.cynthia_text.set("")
-            elif args[0] == 'receive' and args[1]:
-                text = f"[W] Cynthia is receiving a message from Alice :O..."
-                self.infoBox.insert(END, f"{text}\n")
-                try:
-                    text, isAuthentic = self.receiveAMessage(
-                        "Alice", args[1]).values()
-                except Exception as err:
-                    print(str(err))
-                    messagebox.showerror(
-                        'Error', f'Error: Something went wrong x( :\n{err}')
-                    return
-                self.infoBox.insert(END, f"\t -> {text}\n")
-                if self.authentic_service_is_on:
-                    authenticity_text = f""
-                    if isAuthentic:
-                        authenticity_text = f"[I] The message is authentic! :D\n"
-                    else:
-                        authenticity_text = f"[W] Key incorrect or message corrupted x(\n"
-                    self.infoBox.insert(
-                        END, f"\t{authenticity_text}\n")
-            else:
-                messagebox.showerror(
-                    'Error', f"Error: We couldn't know witch Keys we have to use x(\n")
-                return
-            self.infoBox.see("end")
-
+    
 
 if __name__ == '__main__':
     print("\n\n**ETS Project**")
