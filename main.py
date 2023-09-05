@@ -24,18 +24,15 @@ def getRandomBytes(size):
     # print repr(f.read(10))
     return iv
 
-
 def AEScipher(data, key):
     cipher = AES.new(key, AES.MODE_CBC)
     ciphertext = cipher.encrypt(pad(data, AES.block_size))
     return ciphertext
 
-
 def AESdecipher(ciphertext, key):
     cipher = AES.new(key, AES.MODE_CBC)
     plaintext = cipher.decrypt(ciphertext)
     return plaintext
-
 
 def makePairOfKeys():
     if not os.path.exists(f'./rsa'):
@@ -64,60 +61,6 @@ def makePairOfKeys():
     except FileExistsError:
         print("\t Something went really wrong! x(")
     print(f"\t\tDone!")
-
-
-def getPubkeyFrom(sender, receiver):
-    with open(f"./{sender}/rsa/id_{receiver}_rsa", mode='rb') as pubfile:
-        keydata = pubfile.read()
-        return rsa.PublicKey.load_pkcs1(keydata)
-
-
-def getPrivateKeyFrom(sender, receiver):
-    with open(f"./{receiver}/rsa/id_{receiver}_{sender}_rsa.pem", mode='rb') as privatefile:
-        keydata = privatefile.read()
-        return rsa.PrivateKey.load_pkcs1(keydata)
-
-
-def rsaDecryptParameterBytes(ciphered_parameters, privkey):
-    parameters = b''
-    for i in range(0, len(ciphered_parameters), 64):
-        parameters = parameters + \
-            rsa.decrypt(ciphered_parameters[i:64+i], privkey)
-    # print(f"\t-> Lenght: {len(parameters)} \n\t-> Parameters: {parameters}")
-    return parameters
-
-
-def getListFromBytes(parameters):
-    value_ending = 0
-    key_ending = 0
-    parameters_list = []
-    keys_found = 0
-    last_key_found = ''
-    # print(f"Parameter lenght: {len(parameters)}")
-    # len_counter = 0
-    # We assume that there are printable and unprintable values on the list (keys are allways printable)
-    for i, c in enumerate(parameters):
-        if chr(c).isprintable():
-            if chr(c) == ':':  # We have a key ending
-                key_ending = i + 1
-                # print(
-                #     f"\tKey found: {parameters[value_ending:i]} => {len(parameters[value_ending:i])}")
-                # len_counter = len_counter + len(parameters[value_ending:i])
-                last_key_found = (parameters[value_ending:i]).decode()
-                parameters_list.append({last_key_found: ''})
-                keys_found = keys_found + 1
-            elif chr(c) == "^":
-                value_ending = i + 1
-                # print(
-                #     f"\tValue found: {parameters[key_ending:i]} => {len(parameters[key_ending:i])}")
-                # len_counter = len_counter + len(parameters[key_ending:i])
-                parameters_list[keys_found -
-                                1][last_key_found] = parameters[key_ending:i]
-                # print()
-    # print(f"Total Lenght: {len_counter}")
-    # print(f"{parameters_list}")
-    return parameters_list
-
 
 class windowLayout:
     def __init__(self) -> None:
@@ -203,19 +146,18 @@ class windowLayout:
             self.encrypt(self.filename_text.get())
         else: # Decrypt
             self.decrypt(self.filename_text.get())   
+
     def encrypt(self, filename, *args):
         AES_key = getRandomBytes(16)
         with open(filename, mode='rb') as file:
             data = file.read()
         # AES Ciphering
         cipher_text = AEScipher(getRandomBytes(16)+data, AES_key) # Padding of 16 bytes
-        # print(cipher_text)
         # RSA Encryption for AES Key
         with open(f'./rsa/b_pubkey_rsa', mode='rb') as pubfile: # Bert Public key selected by default
             keydata = pubfile.read()
         pubkey = rsa.PublicKey.load_pkcs1(keydata)
         ciphered_key = rsa.encrypt(AES_key, pubkey)
-        # print("AES key Encrypted\n\t",ciphered_key)
         # RSA Encryption for digital sign
         print("\nLet's take 32 elements\n",data[:32])
         hash = int.from_bytes(sha512(data[:32]).digest(), byteorder='big')
@@ -225,7 +167,6 @@ class windowLayout:
         n = int(keydata[n_start:keydata.find("-----RSA Private Key END-----")], 16)
         d = int(keydata[keydata.find("\n\n") -1:keydata.find("\n\n")], 16)
         signature = pow(hash, d, n)
-        # print(f"Signature: {hex(signature)}")
         with open(f"./signature", "w+") as signaturefile:
             signaturefile.write(f"{hex(signature)}")
         with open(f"./output", "wb+") as outputfile:
@@ -261,9 +202,6 @@ class windowLayout:
         hash = int.from_bytes(sha512(plaintext[:32]).digest(), byteorder='big')
         hashFromSignature = pow(int(signature_data, 16), e, n)
         print("Signature valid:", hash == hashFromSignature)
-
-
-    
 
 if __name__ == '__main__':
     print("\n\n**ETS Project**")
