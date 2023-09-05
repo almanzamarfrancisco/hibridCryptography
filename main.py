@@ -198,7 +198,6 @@ class windowLayout:
             self.key_filename_text.set(filename)
             
     def action(self, *args):
-        # print("Action gotten")
         # print(f"Variables values: \n\tSwitchButton: {self.action_switch} \n\tSigning: {self.sign_value.get()}, \n\tVer: {self.verification_value.get()}")
         if self.action_switch: # Encrypt
             self.encrypt(self.filename_text.get())
@@ -209,7 +208,7 @@ class windowLayout:
         with open(filename, mode='rb') as file:
             data = file.read()
         # AES Ciphering
-        cipher_text = AEScipher(data, AES_key)
+        cipher_text = AEScipher(getRandomBytes(16)+data, AES_key) # Padding of 16 bytes
         # print(cipher_text)
         # RSA Encryption for AES Key
         with open(f'./rsa/b_pubkey_rsa', mode='rb') as pubfile: # Bert Public key selected by default
@@ -218,8 +217,8 @@ class windowLayout:
         ciphered_key = rsa.encrypt(AES_key, pubkey)
         # print("AES key Encrypted\n\t",ciphered_key)
         # RSA Encryption for digital sign
-        print("\nLet's take 21 elements\n",data[:21])
-        hash = int.from_bytes(sha512(data[:21]).digest(), byteorder='big')
+        print("\nLet's take 32 elements\n",data[:32])
+        hash = int.from_bytes(sha512(data[:32]).digest(), byteorder='big')
         with open(self.key_filename_text.get(), mode='r') as privfile: # User select private key
             keydata = privfile.read()
         n_start = keydata.find("\n\n")+2
@@ -247,11 +246,23 @@ class windowLayout:
         ciphered_text = data[data.find(b"\n\n")+2:]
         # AES decryption
         plaintext = AESdecipher(ciphered_text, deciphered_key)
+        plaintext = plaintext[16:] # padding from encryption
         print(plaintext)
         with open(f"./plaintext.txt", "wb+") as outputfile:
             outputfile.write(plaintext)
         # RSA Decryption for digital sign
-        
+        with open("./rsa/a_pubkey_rsa", mode='r+') as pubfile: # Alice Public key selected by default
+            keydata = pubfile.read()
+        n_start = keydata.find("\n\n")+2
+        n = int(keydata[n_start:keydata.find("-----RSA Public Key END-----")], 16)
+        e = int(keydata[keydata.find("\n\n") -1:keydata.find("\n\n")], 16)
+        with open("./signature", mode='r+') as signfile: # signature
+            signature_data = signfile.read()
+        hash = int.from_bytes(sha512(plaintext[:32]).digest(), byteorder='big')
+        hashFromSignature = pow(int(signature_data, 16), e, n)
+        print("Signature valid:", hash == hashFromSignature)
+
+
     
 
 if __name__ == '__main__':
